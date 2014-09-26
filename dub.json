@@ -1,11 +1,11 @@
 {
-	"name": "eve_static",
-	"description": "A simple vibe.d server application.",
-	"copyright": "Copyright © 2014, bhechinger",
-	"authors": ["bhechinger"],
-	"dependencies": {
-		"vibe-d": ">=0.7.21-beta.1",
+  "name": "eve_static",
+  "description": "An XML API front end to the EVE statid data",
+  "copyright": "Copyright © 2014, bhechinger",
+  "authors": ["bhechinger"],
+  "dependencies": {
+    "vibe-d": ">=0.7.21-beta.1",
     "kxml": "~master"
-	},
-	"versions": ["VibeDefaultMain"]
+  },
+  "versions": ["VibeDefaultMain"]
 }
