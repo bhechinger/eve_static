@@ -3,7 +3,7 @@ import vibe.d;
 shared static this()
 {
 	auto settings = new HTTPServerSettings;
-	settings.port = 8080;
+	settings.port = 8181;
 	settings.bindAddresses = ["::1", "127.0.0.1"];
 	listenHTTP(settings, &hello);
 

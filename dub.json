@@ -4,7 +4,8 @@
 	"copyright": "Copyright © 2014, bhechinger",
 	"authors": ["bhechinger"],
 	"dependencies": {
-		"vibe-d": ">=0.7.17"
+		"vibe-d": ">=0.7.21-beta.1",
+    "kxml": "~master"
 	},
 	"versions": ["VibeDefaultMain"]
 }
