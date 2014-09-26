@@ -5,7 +5,8 @@
   "authors": ["bhechinger"],
   "dependencies": {
     "vibe-d": ">=0.7.21-beta.1",
-    "kxml": "~master"
+    "kxml": "~master",
+    "mysql-native": "~master"
   },
   "versions": ["VibeDefaultMain"]
 }
