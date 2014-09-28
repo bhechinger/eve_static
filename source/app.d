@@ -17,33 +17,49 @@ shared static this() {
 void hello(HTTPServerRequest req, HTTPServerResponse res) {
   // CREATE USER 'eve_static'@'localhost' IDENTIFIED BY 'eve_static';
   // GRANT ALL PRIVILEGES ON eve_static.* TO 'eve_static'@'localhost'
+  string table = "warCombatZones";
+  bool table_found = false;
   string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
   auto mdb = new MysqlDB(DSN);
   auto c = mdb.lockConnection();
   scope(exit) c.close();
 
+  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
+
   MetaData md = MetaData(c);
   auto curTables = md.tables();
   XmlNode tables = new XmlNode("tables");
   foreach(tbls ; curTables) {
+    if (table == tbls) {
+        table_found = true;
+    }
     tables.addChild(new XmlNode(tbls));
   }
+  //root.addChild(tables);
 
-  string table = "warCombatZones";
-  ulong rowsAffected;
-  auto columns = md.columns(table);
+  if (!table_found) {
+    root.setAttribute("error", true);
+    root.addChild(new XmlNode("error").addCData("No such table: " ~ table));
+    res.writeBody(root.toPrettyString);
+    return;
+  }
+
+  auto curColumns = md.columns(table);
+  XmlNode columns = new XmlNode("columns");
+  foreach(cols; curColumns) {
+      columns.addChild(new XmlNode(cols.name));
+  }
+  //root.addChild(columns);
+
   auto command = new Command(c);
   command.sql = "SELECT * FROM " ~ table;
-  //command.prepare();
-  //command.bindParameter(table, 0);
-  //auto results = command.execPreparedResult();
   auto results = command.execSQLResult();
-  XmlNode node = new XmlNode(table);
+  XmlNode node = new XmlNode(table).setAttribute("rowsReturned", results.length);
 
   foreach (row; results) {
     XmlNode foo = new XmlNode("row");
 
-    foreach(column; columns) {
+    foreach(column; curColumns) {
       if (column.type == "string") {
         foo.addChild(new XmlNode(column.name).addCData(row[column.index].get!string));
       } else {
@@ -54,7 +70,6 @@ void hello(HTTPServerRequest req, HTTPServerResponse res) {
     node.addChild(foo);
   }
 
-  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
   root.addChild(node);
 	res.writeBody(root.toPrettyString);
 }
