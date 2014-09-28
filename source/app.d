@@ -22,16 +22,39 @@ void hello(HTTPServerRequest req, HTTPServerResponse res) {
   auto c = mdb.lockConnection();
   scope(exit) c.close();
 
-  auto command = new Command(c, "SELECT combatZoneID, combatZoneName, factionID, centerSystemID, description FROM warCombatZones");
+  MetaData md = MetaData(c);
+  auto curTables = md.tables();
+  XmlNode tables = new XmlNode("tables");
+  foreach(tbls ; curTables) {
+    tables.addChild(new XmlNode(tbls));
+  }
+
+  string table = "warCombatZones";
+  ulong rowsAffected;
+  auto columns = md.columns(table);
+  auto command = new Command(c);
+  command.sql = "SELECT * FROM " ~ table;
+  //command.prepare();
+  //command.bindParameter(table, 0);
+  //auto results = command.execPreparedResult();
   auto results = command.execSQLResult();
-  XmlNode node = new XmlNode("warCombatZones");
+  XmlNode node = new XmlNode(table);
+
   foreach (row; results) {
-    XmlNode foo = new XmlNode(row[1].get!string);
-    foo.addChild(new XmlNode("description").addCData(row[4].get!string));
-    foo.addChild(new XmlNode("combatZoneID").addCData(to!string(row[0].get!int)));
-    foo.addChild(new XmlNode("factionID").addCData(to!string(row[2].get!int)));
-    foo.addChild(new XmlNode("centerSystemID").addCData(to!string(row[3].get!int)));
+    XmlNode foo = new XmlNode("row");
+
+    foreach(column; columns) {
+      if (column.type == "string") {
+        foo.addChild(new XmlNode(column.name).addCData(row[column.index].get!string));
+      } else {
+        foo.addChild(new XmlNode(column.name).addCData(row[column.index].to!string()));
+      }
+    }
+
     node.addChild(foo);
   }
-	res.writeBody(node.toPrettyString);
+
+  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
+  root.addChild(node);
+	res.writeBody(root.toPrettyString);
 }
