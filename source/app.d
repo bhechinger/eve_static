@@ -7,6 +7,8 @@ import std.conv;
 
 MysqlDB mdb;
 string db_version = "hyperion_1.0";
+string[] curTables;
+MetaData md;
 
 shared static this() {
 	auto settings = new HTTPServerSettings;
@@ -18,6 +20,10 @@ shared static this() {
   try {
     string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
     mdb = new MysqlDB(DSN);
+    auto c = mdb.lockConnection();
+    scope (exit) c.close();
+    md = MetaData(c);
+    curTables = md.tables();
   } catch (Exception e1) {
     // Now what, though. How do we inform the client?
     logError("Exception: " ~ e1.msg);
@@ -33,13 +39,12 @@ shared static this() {
 }
 
 void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
-  auto c = mdb.lockConnection();
-  scope(exit) c.close();
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
   try {
-    MetaData md = MetaData(c);
-    auto curTables = md.tables();
+    auto c = mdb.lockConnection();
+    scope(exit) c.close();
+
     XmlNode tables = new XmlNode("tables");
     foreach(tbls ; curTables) {
       tables.addChild(new XmlNode(tbls));
@@ -55,12 +60,12 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
 
 void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
   string table = req.params["tableName"];
-  auto c = mdb.lockConnection();
-  scope(exit) c.close();
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
 
   try {
-    MetaData md = MetaData(c);
+    auto c = mdb.lockConnection();
+    scope(exit) c.close();
+
     auto curColumns = md.columns(table);
     XmlNode columns = new XmlNode("columns").setAttribute("table", table);
     foreach(cols; curColumns) {
@@ -78,15 +83,13 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
 void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   string table = req.params["tableName"];
   bool table_found = false;
-  auto c = mdb.lockConnection();
-  scope(exit) c.close();
-  MetaData md;
-
+  Connection c;
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
   try {
-    md = MetaData(c);
-    auto curTables = md.tables();
+    c = mdb.lockConnection();
+    scope(exit) c.close();
+
     foreach(tbls ; curTables) {
       if (table == tbls) {
         table_found = true;
