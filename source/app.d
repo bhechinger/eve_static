@@ -6,6 +6,7 @@ import mysql.db;
 import std.conv;
 
 MysqlDB mdb;
+string db_version = "hyperion_1.0";
 
 shared static this() {
 	auto settings = new HTTPServerSettings;
@@ -34,7 +35,7 @@ shared static this() {
 void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
   auto c = mdb.lockConnection();
   scope(exit) c.close();
-  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
+  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
   try {
     MetaData md = MetaData(c);
@@ -81,7 +82,7 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   scope(exit) c.close();
   MetaData md;
 
-  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
+  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
   try {
     md = MetaData(c);
