@@ -9,14 +9,9 @@ MysqlDB mdb;
 string db_version = "hyperion_1.0";
 string[] curTables;
 MetaData md;
+bool refresh_db = false;
 
-shared static this() {
-	auto settings = new HTTPServerSettings;
-	settings.port = 8181;
-	settings.bindAddresses = ["::1", "127.0.0.1"];
-
-  // CREATE USER 'eve_static'@'localhost' IDENTIFIED BY 'eve_static';
-  // GRANT ALL PRIVILEGES ON eve_static.* TO 'eve_static'@'localhost'
+void getDBConnection() {
   try {
     string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
     mdb = new MysqlDB(DSN);
@@ -24,10 +19,19 @@ shared static this() {
     scope (exit) c.close();
     md = MetaData(c);
     curTables = md.tables();
+    refresh_db = false;
   } catch (Exception e1) {
     // Now what, though. How do we inform the client?
     logError("Exception: " ~ e1.msg);
   }
+}
+
+shared static this() {
+	auto settings = new HTTPServerSettings;
+	settings.port = 8181;
+	settings.bindAddresses = ["::1", "127.0.0.1"];
+
+  getDBConnection();
 
   auto router = new URLRouter;
   router.get("/tables/list", &getTableList);
@@ -41,6 +45,10 @@ shared static this() {
 void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
+  if (refresh_db) {
+    getDBConnection();
+  }
+
   try {
     auto c = mdb.lockConnection();
     scope(exit) c.close();
@@ -51,6 +59,7 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
     }
     root.addChild(tables);
   } catch (Exception e1) {
+    refresh_db = true;
     root.setAttribute("error", true);
     root.addChild(new XmlNode("error").addCData(e1.msg));
     logError("Exception: " ~ e1.msg);
@@ -61,6 +70,10 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
 void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
   string table = req.params["tableName"];
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
+
+  if (refresh_db) {
+    getDBConnection();
+  }
 
   try {
     auto c = mdb.lockConnection();
@@ -73,6 +86,7 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
     }
     root.addChild(columns);
   } catch (Exception e1) {
+    refresh_db = true;
     root.setAttribute("error", true);
     root.addChild(new XmlNode("error").addCData(e1.msg));
     logError("Exception: " ~ e1.msg);
@@ -86,8 +100,13 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   Connection c;
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
+  if (refresh_db) {
+    getDBConnection();
+  }
+
   try {
     c = mdb.lockConnection();
+    logInfo("Server Status: " ~ c.serverStatus().to!string);
     scope(exit) c.close();
 
     foreach(tbls ; curTables) {
@@ -96,6 +115,7 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
       }
     }
   } catch (Exception e1) {
+    refresh_db = true;
     root.setAttribute("error", true);
     root.addChild(new XmlNode("error").addCData(e1.msg));
     logError("Exception: " ~ e1.msg);
@@ -115,10 +135,12 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   try {
     curColumns = md.columns(table);
     //pragma(msg, typeof(curColumns))
+    logInfo("Server Status: " ~ c.serverStatus().to!string);
     auto command = new Command(c);
     command.sql = "SELECT * FROM " ~ table;
     results = command.execSQLResult();
   } catch (Exception e1) {
+    refresh_db = true;
     root.setAttribute("error", true);
     root.addChild(new XmlNode("error").addCData(e1.msg));
     logError("Exception: " ~ e1.msg);
