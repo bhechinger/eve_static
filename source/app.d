@@ -9,21 +9,30 @@ MysqlDB mdb;
 string db_version = "hyperion_1.0";
 string[] curTables;
 MetaData md;
-bool refresh_db = false;
+bool refresh_db = true;
 
-void getDBConnection() {
+Connection getDBConnection() {
+  Connection c;
+
   try {
-    string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
-    mdb = new MysqlDB(DSN);
-    auto c = mdb.lockConnection();
-    scope (exit) c.close();
-    md = MetaData(c);
-    curTables = md.tables();
-    refresh_db = false;
+    if (refresh_db) {
+      string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
+      mdb = new MysqlDB(DSN);
+    }
+
+    c = mdb.lockConnection();
+
+    if (refresh_db) {
+      md = MetaData(c);
+      curTables = md.tables();
+      refresh_db = false;
+    }
   } catch (Exception e1) {
     // Now what, though. How do we inform the client?
     logError("Exception: " ~ e1.msg);
   }
+
+  return(c);
 }
 
 shared static this() {
@@ -42,15 +51,25 @@ shared static this() {
 	logInfo("Please open http://127.0.0.1:8181/ in your browser.");
 }
 
-void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
-  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
+XmlNode createRootElement() {
+  return(new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false));
+}
 
-  if (refresh_db) {
-    getDBConnection();
-  }
+string sendErrorResponse(string msg) {
+  refresh_db = true;
+  XmlNode root = createRootElement();
+  root.setAttribute("error", true);
+  root.addChild(new XmlNode("error").addCData(msg));
+  logError("Exception: " ~ msg);
+  return(root.toPrettyString);
+}
+
+void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
+  XmlNode root = createRootElement();
+  Connection c;
 
   try {
-    auto c = mdb.lockConnection();
+    c = getDBConnection();
     scope(exit) c.close();
 
     XmlNode tables = new XmlNode("tables");
@@ -58,40 +77,27 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
       tables.addChild(new XmlNode(tbls));
     }
     root.addChild(tables);
+	  res.writeBody(root.toPrettyString);
   } catch (Exception e1) {
-    refresh_db = true;
-    root.setAttribute("error", true);
-    root.addChild(new XmlNode("error").addCData(e1.msg));
-    logError("Exception: " ~ e1.msg);
+    res.writeBody(sendErrorResponse(e1.msg));
   }
-	res.writeBody(root.toPrettyString);
 }
 
 void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
   string table = req.params["tableName"];
-  XmlNode root = new XmlNode("eve_static").setAttribute("db_version", "hyperion").setAttribute("error", false);
-
-  if (refresh_db) {
-    getDBConnection();
-  }
+  XmlNode root = createRootElement();
 
   try {
-    auto c = mdb.lockConnection();
-    scope(exit) c.close();
-
     auto curColumns = md.columns(table);
     XmlNode columns = new XmlNode("columns").setAttribute("table", table);
     foreach(cols; curColumns) {
       columns.addChild(new XmlNode(cols.name));
     }
     root.addChild(columns);
+	  res.writeBody(root.toPrettyString);
   } catch (Exception e1) {
-    refresh_db = true;
-    root.setAttribute("error", true);
-    root.addChild(new XmlNode("error").addCData(e1.msg));
-    logError("Exception: " ~ e1.msg);
+    res.writeBody(sendErrorResponse(e1.msg));
   }
-	res.writeBody(root.toPrettyString);
 }
 
 void getTable(HTTPServerRequest req, HTTPServerResponse res) {
@@ -100,13 +106,8 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   Connection c;
   XmlNode root = new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 
-  if (refresh_db) {
-    getDBConnection();
-  }
-
   try {
-    c = mdb.lockConnection();
-    logInfo("Server Status: " ~ c.serverStatus().to!string);
+    c = getDBConnection();
     scope(exit) c.close();
 
     foreach(tbls ; curTables) {
@@ -115,18 +116,12 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
       }
     }
   } catch (Exception e1) {
-    refresh_db = true;
-    root.setAttribute("error", true);
-    root.addChild(new XmlNode("error").addCData(e1.msg));
-    logError("Exception: " ~ e1.msg);
-    res.writeBody(root.toPrettyString);
+    res.writeBody(sendErrorResponse(e1.msg));
     return;
   }
 
   if (!table_found) {
-    root.setAttribute("error", true);
-    root.addChild(new XmlNode("error").addCData("No such table: " ~ table));
-    res.writeBody(root.toPrettyString);
+    res.writeBody(sendErrorResponse("No such table: " ~ table));
     return;
   }
 
@@ -135,16 +130,11 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   try {
     curColumns = md.columns(table);
     //pragma(msg, typeof(curColumns))
-    logInfo("Server Status: " ~ c.serverStatus().to!string);
     auto command = new Command(c);
     command.sql = "SELECT * FROM " ~ table;
     results = command.execSQLResult();
   } catch (Exception e1) {
-    refresh_db = true;
-    root.setAttribute("error", true);
-    root.addChild(new XmlNode("error").addCData(e1.msg));
-    logError("Exception: " ~ e1.msg);
-    res.writeBody(root.toPrettyString);
+    res.writeBody(sendErrorResponse(e1.msg));
     return;
   }
 
