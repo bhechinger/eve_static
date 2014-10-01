@@ -23,6 +23,7 @@ if [ $RET_VAL -eq 0 ]; then
   exit
 fi
 
+mkdir -p scratch
 cd scratch
 echo "Downloading ${DB_FILE}"
 wget -O ${DB_FILE} ${DB_URL} --no-check-certificate
