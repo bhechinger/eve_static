@@ -1,0 +1,46 @@
+CHECK_URL=https://144.76.101.55/dump/mysql-latest.tar.bz2.md5
+CHECK_VERSION=mysql-latest.tar.bz2.md5
+CURRENT_VERSION=mysql-latest.tar.bz2.md5.current
+DB_URL=https://144.76.101.55/dump/mysql-latest.tar.bz2
+DB_FILE=mysql-latest.tar.bz2
+
+# Cleanup old file if it got left behind
+rm -f mysql-latest.tar.bz2.md5
+
+wget -O ${CHECK_VERSION} ${CHECK_URL} --no-check-certificate -q
+RET_VAL=$?
+
+if [ $RET_VAL -ne 0 ]; then
+  echo "Fetching the md5 file failed."
+  exit $RET_VAL
+fi
+
+diff ${CURRENT_VERSION} ${CHECK_VERSION} > /dev/null
+RET_VAL=$?
+
+if [ $RET_VAL -eq 0 ]; then
+  echo "Version files are the same, nothing to do."
+  exit
+fi
+
+cd scratch
+echo "Downloading ${DB_FILE}"
+wget -O ${DB_FILE} ${DB_URL} --no-check-certificate
+RET_VAL=$?
+
+if [ $RET_VAL -ne 0 ]; then
+  echo "Fetching the db file failed."
+  exit $RET_VAL
+fi
+
+echo "Extracting files"
+tar -xzf ${DB_FILE}
+
+DB_VERSION=$(ls | grep -v mysql-latest.tar.bz2)
+echo "Creating database ${DB_VERSION}"
+mysql -uroot -e "drop database eve_static; create database eve_static"
+mysql -uroot eve_static < ${DB_VERSION}/*.sql
+
+cd ..
+sed -ie "s/\(db_version *= *\).*/\1${DB_VERSION}/g" ../conf/example.conf
+mv ${CHECK_VERSION} ${CURRENT_VERSION}
