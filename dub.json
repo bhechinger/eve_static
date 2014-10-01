@@ -6,7 +6,8 @@
   "dependencies": {
     "vibe-d": ">=0.7.21-beta.1",
     "kxml": "~master",
-    "mysql-native": "~master"
+    "mysql-native": "~master",
+    "onyx-config": ">=1.1.2"
   },
   "versions": ["VibeDefaultMain"]
 }

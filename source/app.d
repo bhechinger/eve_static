@@ -4,6 +4,7 @@ import mysql.connection;
 import std.stdio;
 import mysql.db;
 import std.conv;
+import onyx.config.bundle;
 
 MysqlDB mdb;
 string db_version = "hyperion_1.0";
@@ -11,13 +12,22 @@ string[] curTables;
 MetaData md;
 bool refresh_db = true;
 
+string getDSN() {
+  auto bundle = immutable ConfBundle("conf/example.conf");
+  auto host = bundle.value("database", "host");
+  auto port = bundle.value("database", "port");
+  auto user = bundle.value("database", "user");
+  auto pwd = bundle.value("database", "pwd");
+  auto db = bundle.value("database", "db");
+  return("host=" ~ host ~ ";port=" ~ port ~ ";user=" ~ user ~ ";pwd=" ~ pwd ~ ";db=" ~ db);
+}
+
 Connection getDBConnection() {
   Connection c;
 
   try {
     if (refresh_db) {
-      string DSN = "host=localhost;port=3306;user=eve_static;pwd=eve_static;db=eve_static";
-      mdb = new MysqlDB(DSN);
+      mdb = new MysqlDB(getDSN());
     }
 
     c = mdb.lockConnection();
