@@ -7,7 +7,7 @@ import std.conv;
 import onyx.config.bundle;
 
 MysqlDB mdb;
-string db_version = "hyperion_1.0";
+string db_version;
 string[] curTables;
 MetaData md;
 bool refresh_db = true;
@@ -19,6 +19,7 @@ string getDSN() {
   auto user = bundle.value("database", "user");
   auto pwd = bundle.value("database", "pwd");
   auto db = bundle.value("database", "db");
+  db_version = bundle.value("database", "db_version");
   return("host=" ~ host ~ ";port=" ~ port ~ ";user=" ~ user ~ ";pwd=" ~ pwd ~ ";db=" ~ db);
 }
 
