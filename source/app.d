@@ -51,8 +51,6 @@ shared static this() {
 	settings.port = 8181;
 	settings.bindAddresses = ["::1", "127.0.0.1"];
 
-  getDBConnection();
-
   auto router = new URLRouter;
   router.get("/tables/list", &getTableList);
   router.get("/table/:tableName", &getTable);
