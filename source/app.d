@@ -56,6 +56,7 @@ shared static this() {
   router.get("/tables/list/:format", &getTableList);
 
   router.get("/table/:tableName", &getTable);
+  router.get("/table/:tableName/:format", &getTable);
 
   router.get("/columns/:tableName", &getColumnList);
   router.get("/columns/:tableName/:format", &getColumnList);
@@ -191,12 +192,12 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
       }
     }
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, "xml"));
+    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
     return;
   }
 
   if (!table_found) {
-    res.writeBody(getErrorResponse("No such table: " ~ table, "xml"));
+    res.writeBody(getErrorResponse("No such table: " ~ table, getFormat(req)));
     return;
   }
 
@@ -209,10 +210,10 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     command.sql = "SELECT * FROM " ~ table;
     results = command.execSQLResult();
   } catch (AssertError e1) {
-    res.writeBody(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", "xml"));
+    res.writeBody(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", getFormat(req)));
     return;
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, "xml"));
+    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
     return;
   }
 
@@ -233,7 +234,16 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   }
 
   root.addChild(node);
-	res.writeBody(root.toPrettyString);
+  switch (getFormat(req)) {
+    case "xml":
+    default:
+	    res.writeBody(root.toPrettyString);
+      break;
+
+    case "text":
+      res.writeBody("ERROR: getTable doesn't currently support 'text' as an output format");
+      break;
+  }
 }
 
 void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
