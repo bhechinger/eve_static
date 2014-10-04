@@ -52,18 +52,23 @@ shared static this() {
 	settings.bindAddresses = ["::1", "127.0.0.1"];
 
   auto router = new URLRouter;
+  // Get a list of the available tables
   router.get("/tables/list", &getTableList);
   router.get("/tables/list/:format", &getTableList);
 
+  // Get all the rows of a specific table
   router.get("/table/:tableName", &getTable);
   router.get("/table/:tableName/:format", &getTable);
 
+  // Get a list of the columns in a table
   router.get("/columns/:tableName", &getColumnList);
   router.get("/columns/:tableName/:format", &getColumnList);
 
+  // Lookup by ID and return Name
   router.get("/item/lookup/Name/:itemID", &lookupItem);
   router.get("/item/lookup/Name/:itemID/:format", &lookupItem);
 
+  // Lookup by Name and return ID
   router.get("/item/lookup/ID/:itemName", &lookupItem);
   router.get("/item/lookup/ID/:itemName/:format", &lookupItem);
 
@@ -181,6 +186,8 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   bool table_found = false;
   Connection c;
   XmlNode root = createRootElement();
+
+  writeln(req.params);
 
   try {
     c = getDBConnection();
