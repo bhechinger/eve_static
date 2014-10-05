@@ -200,10 +200,24 @@ bool colInCurColumns(string col, ColumnInfo[] curColumns) {
   return(false);
 }
 
+string generateSQLParams(ulong count) {
+  string params;
+
+  for (ulong i = 0; i < count; i++) {
+    if (params) {
+      params ~= ", ?";
+    } else {
+      params = "?";
+    }
+  }
+  return(params);
+}
+
 void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   auto col_filter_r = req.query.get("cols");
   auto match_col = req.query.get("match_col");
   auto match_filter_r = req.query.get("match_filter");
+  auto match_filter = split(match_filter_r, ",");
 
   string table = req.params["tableName"];
   bool table_found = false;
@@ -237,7 +251,6 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     auto command = new Command(c);
 
     string col_filter;
-    string match_filter;
     if (col_filter_r) {
       foreach (f; split(col_filter_r, ",")) {
         if (colInCurColumns(f, curColumns)) {
@@ -251,24 +264,23 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     } else {
       col_filter = "*";
     }
-    writeln("col_filter: ", col_filter);
 
     // Make sure match_col exists
     if (!colInCurColumns(match_col, curColumns)) {
       res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
     }
 
-    //if (match_col) {
-    //  command.sql = "SELECT * FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ match_filter_r ~ ")";
-    //} else {
-    //  command.sql = "SELECT * FROM " ~ table;
-    //}
-    command.sql = "SELECT * FROM warCombatZones WHERE combatZoneName IN (?, ?)";
+    if (match_col) {
+      command.sql = "SELECT * FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
+    } else {
+      command.sql = "SELECT * FROM " ~ table;
+    }
     command.prepare;
     Variant[] va;
-    va.length = 2;
-    va[0] = "Bleaks";
-    va[1] = "FED";
+    va.length = match_filter.length;
+    for (int i = 0; i < match_filter.length; i++) {
+      va[i] = match_filter[i];
+    }
     command.bindParameters(va);
     results = command.execPreparedResult();
   } catch (AssertError e1) {
