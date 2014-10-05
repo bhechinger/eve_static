@@ -14,7 +14,7 @@ MetaData md;
 bool refresh_db = true;
 
 string getDSN() {
-  auto bundle = immutable ConfBundle("conf/example.conf");
+  auto bundle = immutable ConfBundle("conf/eve_static.conf");
   auto host = bundle.value("database", "host");
   auto port = bundle.value("database", "port");
   auto user = bundle.value("database", "user");
@@ -49,8 +49,9 @@ Connection getDBConnection() {
 
 shared static this() {
 	auto settings = new HTTPServerSettings;
+  auto bundle = immutable ConfBundle("conf/eve_static.conf");
 	settings.port = 8181;
-	settings.bindAddresses = ["::1", "127.0.0.1"];
+	settings.bindAddresses = [bundle.value("network", "listen")];
 
   auto router = new URLRouter;
   // Get a list of the available tables
