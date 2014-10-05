@@ -250,9 +250,10 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     //pragma(msg, typeof(curColumns))
     auto command = new Command(c);
 
+    auto col_filter_a = split(col_filter_r, ",");
     string col_filter;
     if (col_filter_r) {
-      foreach (f; split(col_filter_r, ",")) {
+      foreach (f; col_filter_a) {
         if (colInCurColumns(f, curColumns)) {
           if (col_filter) {
             col_filter ~= ", " ~ f;
@@ -271,9 +272,9 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     }
 
     if (match_col) {
-      command.sql = "SELECT * FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
+      command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
     } else {
-      command.sql = "SELECT * FROM " ~ table;
+      command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table;
     }
     command.prepare;
     Variant[] va;
@@ -296,12 +297,8 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   foreach (row; results) {
     XmlNode row_xml = new XmlNode("row");
 
-    foreach(column; curColumns) {
-      if (column.type == "string") {
-        row_xml.addChild(new XmlNode(column.name).addCData(row[column.index].get!string));
-      } else {
-        row_xml.addChild(new XmlNode(column.name).addCData(row[column.index].to!string()));
-      }
+    foreach (foo; results.colNames) {
+      row_xml.addChild(new XmlNode(foo).addCData(row[results.colNameIndicies[foo]].to!string()));
     }
 
     node.addChild(row_xml);
