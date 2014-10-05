@@ -66,12 +66,12 @@ shared static this() {
   router.get("/columns/:tableName/:format", &getColumnList);
 
   // Lookup by ID and return Name
-  router.get("/item/lookup/Name/:itemID", &lookupItem);
-  router.get("/item/lookup/Name/:itemID/:format", &lookupItem);
+  router.get("/lookup/:item/byID/:itemID", &lookupItem);
+  router.get("/lookup/:item/byID/:itemID/:format", &lookupItem);
 
   // Lookup by Name and return ID
-  router.get("/item/lookup/ID/:itemName", &lookupItem);
-  router.get("/item/lookup/ID/:itemName/:format", &lookupItem);
+  router.get("/lookup/:item/byName/:itemName", &lookupItem);
+  router.get("/lookup/:item/byName/:itemName/:format", &lookupItem);
 
 	listenHTTP(settings, router);
 
@@ -321,7 +321,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   enum { ID, NAME }
   int action, itemID;
   string output, itemName;
-  string node_name, node_attr, node_attr_val;
+  string node_attr, node_attr_val;
   Connection c;
   XmlNode root = createRootElement;
 
@@ -333,13 +333,16 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     return;
   }
 
-  ResultSet results;
   try {
     itemID = req.params["itemID"].to!int;
     action = ID;
+  } catch (ConvException) {
+    writeln(getFormat(req));
+    res.writeBody(getErrorResponse("Not a valid numeric ID: " ~ req.params["itemID"], getFormat(req)));
   } catch (RangeError) {
     // ignoring
   }
+
   try {
     itemName = req.params["itemName"];
     action = NAME;
@@ -347,26 +350,77 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     // ignoring
   }
 
+  string tableName, columnName, searchColumn;
+  ResultSet results;
+
+  switch (req.params["item"]) {
+    case "item":
+      tableName = "invNames";
+      switch (action) {
+        case ID:
+          columnName = "itemName";
+          searchColumn = "itemID";
+          break;
+
+        case NAME:
+          columnName = "itemID";
+          searchColumn = "itemName";
+          break;
+
+        default:
+          break;
+      }
+      break;
+
+    case "system":
+      tableName = "mapSolarSystems";
+      switch (action) {
+        case ID:
+          columnName = "solarSystemName";
+          searchColumn = "solarSystemID";
+          break;
+        case NAME:
+          columnName = "solarSystemID";
+          searchColumn = "solarSystemName";
+          break;
+
+        default:
+          break;
+      }
+      break;
+
+    default:
+      res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
+      break;
+  }
+
   auto command = new Command(c);
+  command.sql = "SELECT " ~ columnName ~ " FROM " ~ tableName ~ " WHERE " ~ searchColumn ~ " = ?";
+  command.prepare;
+
   switch (action) {
     case ID:
-      command.sql = "SELECT itemName FROM invNames WHERE itemID = ?";
-      command.prepare();
       command.bindParameter(itemID, 0);
       results = command.execPreparedResult();
-      output = results[0][0].get!string;
-      node_name = "itemName";
+      if (!results.length) {
+        res.writeBody(getErrorResponse("No such ID: " ~ itemID.to!string, getFormat(req)));
+      }
+      try {
+        output = results[0][0].get!string;
+      } catch (VariantException) {
+        res.writeBody(getErrorResponse("UTF-8 not currently supported, sorry", getFormat(req)));
+      }
       node_attr = "id";
       node_attr_val = itemID.to!string;
       break;
 
     case NAME:
-      command.sql = "SELECT itemID FROM invNames WHERE itemName = ?";
-      command.prepare();
       command.bindParameter(itemName, 0);
       results = command.execPreparedResult();
+      if (!results.length) {
+        res.writeBody(getErrorResponse("No such Name: " ~ itemName, getFormat(req)));
+      }
       output = results[0][0].to!string;
-      node_name = "itemID";
       node_attr = "name";
       node_attr_val = itemName;
       break;
@@ -379,7 +433,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   switch (getFormat(req)) {
     case "xml":
     default:
-      root.addChild(new XmlNode(node_name).setAttribute(node_attr, node_attr_val).setCData(output));
+      root.addChild(new XmlNode(searchColumn).setAttribute(node_attr, node_attr_val).setCData(output));
       res.writeBody(root.toPrettyString);
       break;
 
