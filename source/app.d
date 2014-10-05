@@ -5,6 +5,7 @@ import std.stdio;
 import mysql.db;
 import std.conv;
 import onyx.config.bundle;
+import std.variant;
 
 MysqlDB mdb;
 string db_version;
@@ -181,13 +182,33 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
   }
 }
 
+bool stringInArray(string str, string[] arr) {
+  foreach (tstr; arr) {
+    if (str == tstr) {
+      return(true);
+    }
+  }
+  return(false);
+}
+
+bool colInCurColumns(string col, ColumnInfo[] curColumns) {
+  foreach (ccol; curColumns) {
+    if (col == ccol.name) {
+      return(true);
+    }
+  }
+  return(false);
+}
+
 void getTable(HTTPServerRequest req, HTTPServerResponse res) {
+  auto col_filter_r = req.query.get("cols");
+  auto match_col = req.query.get("match_col");
+  auto match_filter_r = req.query.get("match_filter");
+
   string table = req.params["tableName"];
   bool table_found = false;
   Connection c;
   XmlNode root = createRootElement();
-
-  writeln(req.params);
 
   try {
     c = getDBConnection();
@@ -214,8 +235,42 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     curColumns = md.columns(table);
     //pragma(msg, typeof(curColumns))
     auto command = new Command(c);
-    command.sql = "SELECT * FROM " ~ table;
-    results = command.execSQLResult();
+
+    string col_filter;
+    string match_filter;
+    if (col_filter_r) {
+      foreach (f; split(col_filter_r, ",")) {
+        if (colInCurColumns(f, curColumns)) {
+          if (col_filter) {
+            col_filter ~= ", " ~ f;
+          } else {
+            col_filter = f;
+          }
+        }
+      }
+    } else {
+      col_filter = "*";
+    }
+    writeln("col_filter: ", col_filter);
+
+    // Make sure match_col exists
+    if (!colInCurColumns(match_col, curColumns)) {
+      res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
+    }
+
+    //if (match_col) {
+    //  command.sql = "SELECT * FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ match_filter_r ~ ")";
+    //} else {
+    //  command.sql = "SELECT * FROM " ~ table;
+    //}
+    command.sql = "SELECT * FROM warCombatZones WHERE combatZoneName IN (?, ?)";
+    command.prepare;
+    Variant[] va;
+    va.length = 2;
+    va[0] = "Bleaks";
+    va[1] = "FED";
+    command.bindParameters(va);
+    results = command.execPreparedResult();
   } catch (AssertError e1) {
     res.writeBody(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", getFormat(req)));
     return;
@@ -227,17 +282,17 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   XmlNode node = new XmlNode(table).setAttribute("rowsReturned", results.length);
 
   foreach (row; results) {
-    XmlNode foo = new XmlNode("row");
+    XmlNode row_xml = new XmlNode("row");
 
     foreach(column; curColumns) {
       if (column.type == "string") {
-        foo.addChild(new XmlNode(column.name).addCData(row[column.index].get!string));
+        row_xml.addChild(new XmlNode(column.name).addCData(row[column.index].get!string));
       } else {
-        foo.addChild(new XmlNode(column.name).addCData(row[column.index].to!string()));
+        row_xml.addChild(new XmlNode(column.name).addCData(row[column.index].to!string()));
       }
     }
 
-    node.addChild(foo);
+    node.addChild(row_xml);
   }
 
   root.addChild(node);
