@@ -354,6 +354,24 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   ResultSet results;
 
   switch (req.params["item"]) {
+    case "type":
+      tableName = "invTypes";
+      switch (action) {
+        case ID:
+          columnName = "typeName";
+          searchColumn = "typeID";
+          break;
+
+        case NAME:
+          columnName = "typeID";
+          searchColumn = "typeName";
+          break;
+
+        default:
+          break;
+      }
+      break;
+
     case "item":
       tableName = "invNames";
       switch (action) {
