@@ -408,7 +408,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
       try {
         output = results[0][0].get!string;
       } catch (VariantException) {
-        res.writeBody(getErrorResponse("UTF-8 not currently supported, sorry", getFormat(req)));
+        output = cast(string)results[0][0].get!(ubyte[]);
       }
       node_attr = "id";
       node_attr_val = itemID.to!string;
@@ -433,7 +433,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   switch (getFormat(req)) {
     case "xml":
     default:
-      root.addChild(new XmlNode(searchColumn).setAttribute(node_attr, node_attr_val).setCData(output));
+      root.addChild(new XmlNode(columnName).setAttribute(node_attr, node_attr_val).setCData(output));
       res.writeBody(root.toPrettyString);
       break;
 
