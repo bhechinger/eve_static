@@ -247,7 +247,6 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   ColumnInfo[] curColumns;
   try {
     curColumns = md.columns(table);
-    //pragma(msg, typeof(curColumns))
     auto command = new Command(c);
 
     auto col_filter_a = split(col_filter_r, ",");
@@ -267,9 +266,9 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     }
 
     // Make sure match_col exists
-    if (!colInCurColumns(match_col, curColumns)) {
-      res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
-    }
+    //if (!colInCurColumns(match_col, curColumns)) {
+     // res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
+    //}
 
     if (match_col) {
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
@@ -353,6 +352,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   string tableName, columnName, searchColumn;
   ResultSet results;
 
+  // This needs a better way like a lookup table or something.
   switch (req.params["item"]) {
     case "type":
       tableName = "invTypes";
