@@ -54,6 +54,9 @@ shared static this() {
 	settings.bindAddresses = [bundle.value("network", "listen")];
 
   auto router = new URLRouter;
+  // Some trivial API documentation
+  router.get("/help", &printHelp);
+
   // Get a list of the available tables
   router.get("/tables/list", &getTableList);
   router.get("/tables/list/:format", &getTableList);
@@ -116,6 +119,10 @@ string getErrorResponse(string msg, string format) {
     case "text":
       return("ERROR: " ~ msg);
   }
+}
+
+void printHelp(HTTPServerRequest req, HTTPServerResponse res) {
+  res.render!("index.dt", req);
 }
 
 void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
@@ -319,7 +326,35 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
 
 void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   enum { ID, NAME }
-  int action, itemID;
+  enum { TYPE, ITEM, SYSTEM }
+
+  struct lookupBy {
+    string cn;
+    string sc;
+  }
+
+  struct lookupType {
+    string tn;
+    lookupBy[2] a;
+  }
+
+  lookupType[3] lookupTable;
+  lookupTable[TYPE].tn = "invTypes";
+  lookupTable[TYPE].a[ID].cn = "typeName";
+  lookupTable[TYPE].a[ID].sc = "typeID";
+  lookupTable[ITEM].tn = "invNames";
+  lookupTable[ITEM].a[ID].cn = "itemName";
+  lookupTable[ITEM].a[ID].sc = "itemID";
+  lookupTable[SYSTEM].tn = "mapSolarSystems";
+  lookupTable[SYSTEM].a[ID].cn = "solarSystemName";
+  lookupTable[SYSTEM].a[ID].sc = "solarSystemID";
+
+  for (int i = 0; i < lookupTable.length; i++) {
+    lookupTable[i].a[NAME].cn = lookupTable[i].a[ID].sc;
+    lookupTable[i].a[NAME].sc = lookupTable[i].a[ID].cn;
+  }
+
+  int action, lookup, itemID;
   string output, itemName;
   string node_attr, node_attr_val;
   Connection c;
@@ -333,11 +368,28 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     return;
   }
 
+  switch (req.params["item"]) {
+    case "type":
+      lookup = TYPE;
+      break;
+
+    case "item":
+      lookup = ITEM;
+      break;
+
+    case "system":
+      lookup = SYSTEM;
+      break;
+
+    default:
+      res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
+      break;
+  }
+
   try {
     itemID = req.params["itemID"].to!int;
     action = ID;
   } catch (ConvException) {
-    writeln(getFormat(req));
     res.writeBody(getErrorResponse("Not a valid numeric ID: " ~ req.params["itemID"], getFormat(req)));
   } catch (RangeError) {
     // ignoring
@@ -350,71 +402,10 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     // ignoring
   }
 
-  string tableName, columnName, searchColumn;
   ResultSet results;
 
-  // This needs a better way like a lookup table or something.
-  switch (req.params["item"]) {
-    case "type":
-      tableName = "invTypes";
-      switch (action) {
-        case ID:
-          columnName = "typeName";
-          searchColumn = "typeID";
-          break;
-
-        case NAME:
-          columnName = "typeID";
-          searchColumn = "typeName";
-          break;
-
-        default:
-          break;
-      }
-      break;
-
-    case "item":
-      tableName = "invNames";
-      switch (action) {
-        case ID:
-          columnName = "itemName";
-          searchColumn = "itemID";
-          break;
-
-        case NAME:
-          columnName = "itemID";
-          searchColumn = "itemName";
-          break;
-
-        default:
-          break;
-      }
-      break;
-
-    case "system":
-      tableName = "mapSolarSystems";
-      switch (action) {
-        case ID:
-          columnName = "solarSystemName";
-          searchColumn = "solarSystemID";
-          break;
-        case NAME:
-          columnName = "solarSystemID";
-          searchColumn = "solarSystemName";
-          break;
-
-        default:
-          break;
-      }
-      break;
-
-    default:
-      res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
-      break;
-  }
-
   auto command = new Command(c);
-  command.sql = "SELECT " ~ columnName ~ " FROM " ~ tableName ~ " WHERE " ~ searchColumn ~ " = ?";
+  command.sql = "SELECT " ~ lookupTable[lookup].a[action].cn ~ " FROM " ~ lookupTable[lookup].tn ~ " WHERE " ~ lookupTable[lookup].a[action].sc ~ " = ?";
   command.prepare;
 
   switch (action) {
@@ -427,6 +418,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
       try {
         output = results[0][0].get!string;
       } catch (VariantException) {
+        // LONGTEXT returns ubyte wihch pisses off conversion
         output = cast(string)results[0][0].get!(ubyte[]);
       }
       node_attr = "id";
@@ -452,7 +444,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   switch (getFormat(req)) {
     case "xml":
     default:
-      root.addChild(new XmlNode(columnName).setAttribute(node_attr, node_attr_val).setCData(output));
+      root.addChild(new XmlNode(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
       res.writeBody(root.toPrettyString);
       break;
 
