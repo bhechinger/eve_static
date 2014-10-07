@@ -50,3 +50,20 @@ html
 
       li http://localhost:8181/lookup/type/byID/2048
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;typeName id="2048"&gt;&#10;   Damage Control II&#10;  &lt;/typeName&gt;&#10;&lt;/eve_static&gt;&#10;
+
+    p Every API (except /table/tableName) can output text
+    ul
+      li http://localhost:8181/lookup/type/byID/2048/text
+      p Damage Control II
+
+      li http://localhost:8181/lookup/system/byName/Jita/text
+      p 30000142
+
+    p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments
+    ul
+      li cols - command separated list of column names
+      li match_column - the column we are going to search against
+      li match_filter - the items we want from the column specified by match_column
+    ul
+      li http://localhost:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5"
+      p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="2"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
