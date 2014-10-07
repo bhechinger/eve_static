@@ -4,7 +4,7 @@ html
     title eve_static API documentation
   body
     h1 eve_static API documentation
-    p First of all, I apologize for the crappy looking web page. I am not a web site designer, I'm a coder. That's why this is the documentation for an API server. Anyone who knows the Diet templating system who wants to make this look better please get in touch.
+    p First of all, I apologize for the crappy looking web page. I am not a web site designer. I'm a coder. That's why this is the documentation for an API server. Anyone who knows the Diet templating system (based on Jade) who wants to make this look better please get in touch.
 
     p The eve_static API is something I wrote at the suggestion of lockefox.  It's very early beta and a work in progress at this point.
 
@@ -20,6 +20,31 @@ html
     p Ok, that's enough overview-ish stuff. Let's get down to the nuts and bolts.
     p The following is a brief overview of how this all works.
 
+    p There are several endpoints available, they are:
+    ul
+      li /tables/list
+      li /columns/<i>tableName</i>
+      li /table/<i>tableName</i>
+      li /lookup/item/byName/<i>itemName</i>
+      li /lookup/item/byID/<i>itemID</i>
+      li /lookup/type/byName/<i>typeName</i>
+      li /lookup/type/byID/<i>typeID</i>
+      li /lookup/system/byName/<i>systemName</i>
+      li /lookup/system/byID/<i>systemID</i>
+
+    p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments (IE: http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5)
+    ul
+      li cols - command separated list of column names
+      li match_column - the column to search against
+      li match_filter - command separated list of the items from the column specified by match_column
+
+    p Data can be returned in a number of formats by appending /<i>format</i> to the end of the URL (IE: http://bart.4amlunch.net:8181/tables/list/text)
+    ul
+      li XML (the default)
+      li text (except /table/<i>tableName</i>)
+      li JSON (to be added)
+
+    p Some example output (I appologize for the lousy formatting of the XML. Getting that better formatted is in the works.)
     ul
       li http://bart.4amlunch.net:8181/help
       p This page
@@ -51,19 +76,11 @@ html
       li http://bart.4amlunch.net:8181/lookup/type/byID/2048
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;typeName id="2048"&gt;&#10;   Damage Control II&#10;  &lt;/typeName&gt;&#10;&lt;/eve_static&gt;&#10;
 
-    p Every API (except /table/tableName) can output text
-    ul
+      li http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5
+      p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="2"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
+
       li http://bart.4amlunch.net:8181/lookup/type/byID/2048/text
       p Damage Control II
 
       li http://bart.4amlunch.net:8181/lookup/system/byName/Jita/text
       p 30000142
-
-    p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments
-    ul
-      li cols - command separated list of column names
-      li match_column - the column we are going to search against
-      li match_filter - the items we want from the column specified by match_column
-    ul
-      li http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5"
-      p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="2"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
