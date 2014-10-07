@@ -6,6 +6,7 @@ import mysql.db;
 import std.conv;
 import onyx.config.bundle;
 import std.variant;
+import vibe.textfilter.html;
 
 MysqlDB mdb;
 string db_version;
@@ -87,12 +88,12 @@ XmlNode createRootElement() {
 }
 
 string getFormat(HTTPServerRequest req) {
-  string valid_formats[] = ["text", "xml"];
+  string valid_formats[] = ["text", "xml", "exml"];
 
   try {
     foreach(fmt; valid_formats) {
       string format = req.params["format"];
-      if (fmt == format) {
+      if (fmt == format.toLower()) {
         return(format);
       }
     }
@@ -105,16 +106,20 @@ string getFormat(HTTPServerRequest req) {
 string getErrorResponse(string msg, string format) {
   refresh_db = true;
 
-  // Replace this with a case statement
   switch (format) {
     case "xml":
+    case "exml":
     default:
       // XML is the default
       XmlNode root = createRootElement();
       root.setAttribute("error", true);
       root.addChild(new XmlNode("error").addCData(msg));
       logError("Exception: " ~ msg);
-      return(root.toPrettyString);
+      if (format == "exml") {
+        return(htmlEscape(root.toPrettyString));
+      } else {
+        return(root.toPrettyString);
+      }
 
     case "text":
       return("ERROR: " ~ msg);
@@ -135,13 +140,18 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
 
     switch (getFormat(req)) {
       case "xml":
+      case "exml":
       default:
         XmlNode tables = new XmlNode("tables");
         foreach(tbls; curTables) {
           tables.addChild(new XmlNode(tbls));
         }
         root.addChild(tables);
-	      res.writeBody(root.toPrettyString);
+        if (getFormat(req) == "exml") {
+	        res.writeBody(htmlEscape(root.toPrettyString));
+        } else {
+	        res.writeBody(root.toPrettyString);
+        }
         break;
 
       case "text":
@@ -168,13 +178,18 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
 
     switch (getFormat(req)) {
       case "xml":
+      case "exml":
       default:
         XmlNode columns = new XmlNode("columns").setAttribute("table", table);
         foreach(cols; curColumns) {
           columns.addChild(new XmlNode(cols.name));
         }
         root.addChild(columns);
-	      res.writeBody(root.toPrettyString);
+        if (getFormat(req) == "exml") {
+	        res.writeBody(htmlEscape(root.toPrettyString));
+        } else {
+	        res.writeBody(root.toPrettyString);
+        }
         break;
 
       case "text":
@@ -318,6 +333,10 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
 	    res.writeBody(root.toPrettyString);
       break;
 
+    case "exml":
+	    res.writeBody(htmlEscape(root.toPrettyString));
+      break;
+
     case "text":
       res.writeBody("ERROR: getTable doesn't currently support 'text' as an output format");
       break;
@@ -443,9 +462,14 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
 
   switch (getFormat(req)) {
     case "xml":
+    case "exml":
     default:
       root.addChild(new XmlNode(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
-      res.writeBody(root.toPrettyString);
+      if (getFormat(req) == "exml") {
+        res.writeBody(htmlEscape(root.toPrettyString));
+      } else {
+        res.writeBody(root.toPrettyString);
+      }
       break;
 
     case "text":
