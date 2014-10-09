@@ -320,7 +320,11 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     XmlNode row_xml = new XmlNode("row");
 
     foreach (foo; results.colNames) {
-      row_xml.addChild(new XmlNode(foo).addCData(row[results.colNameIndicies[foo]].to!string()));
+      auto result_col = new XmlNode(foo);
+      if (!row.isNull(results.colNameIndicies[foo])) {
+        result_col.addCData(row[results.colNameIndicies[foo]].to!string());
+      }
+      row_xml.addChild(result_col);
     }
 
     node.addChild(row_xml);
