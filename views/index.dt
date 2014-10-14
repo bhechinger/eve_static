@@ -31,6 +31,8 @@ html
       li /lookup/type/byID/<i>typeID</i>
       li /lookup/system/byName/<i>systemName</i>
       li /lookup/system/byID/<i>systemID</i>
+      li /lookup/location/byName/<i>locationName</i>
+      li /lookup/location/byID/<i>locationID</i>
 
     p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments (IE: http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5)
     ul
@@ -75,6 +77,12 @@ html
 
       li http://bart.4amlunch.net:8181/lookup/type/byID/2048
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;typeName id="2048"&gt;&#10;   Damage Control II&#10;  &lt;/typeName&gt;&#10;&lt;/eve_static&gt;&#10;
+
+      li http://bart.4amlunch.net:8181/lookup/location/byName/Jita%20IV%20-%20Moon%204%20-%20Caldari%20Navy%20Assembly%20Plant
+      p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemID name="Jita IV - Moon 4 - Caldari Navy Assembly Plant"&gt;&#10;   60003760&#10; &lt;/itemID&gt;&#10;&lt;/eve_static&gt;&#10;
+
+      li http://bart.4amlunch.net:8181/lookup/location/byID/60003760
+      p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemName id="60003760"&gt;&#10;   Jita IV - Moon 4 - Caldari Navy Assembly Plant&#10; &lt;/itemName&gt;&#10;&lt;/eve_static&gt;&#10;
 
       li http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="2"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
