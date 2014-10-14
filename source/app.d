@@ -349,7 +349,7 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
 
 void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   enum { ID, NAME }
-  enum { TYPE, ITEM, SYSTEM }
+  enum { TYPE, ITEM, SYSTEM, LOCATION }
 
   struct lookupBy {
     string cn;
@@ -361,7 +361,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     lookupBy[2] a;
   }
 
-  lookupType[3] lookupTable;
+  lookupType[4] lookupTable;
   lookupTable[TYPE].tn = "invTypes";
   lookupTable[TYPE].a[ID].cn = "typeName";
   lookupTable[TYPE].a[ID].sc = "typeID";
@@ -371,6 +371,9 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   lookupTable[SYSTEM].tn = "mapSolarSystems";
   lookupTable[SYSTEM].a[ID].cn = "solarSystemName";
   lookupTable[SYSTEM].a[ID].sc = "solarSystemID";
+  lookupTable[LOCATION].tn = "mapDenormalize";
+  lookupTable[LOCATION].a[ID].cn = "itemName";
+  lookupTable[LOCATION].a[ID].sc = "itemID";
 
   for (int i = 0; i < lookupTable.length; i++) {
     lookupTable[i].a[NAME].cn = lookupTable[i].a[ID].sc;
@@ -402,6 +405,10 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
 
     case "system":
       lookup = SYSTEM;
+      break;
+
+    case "location":
+      lookup = LOCATION;
       break;
 
     default:
