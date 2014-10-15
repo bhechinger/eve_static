@@ -1,5 +1,5 @@
 class DataExporter {
-  struct Atrribute {
+  struct Attribute {
     string name;
     string value;
   }
