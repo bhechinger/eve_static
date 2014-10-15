@@ -54,7 +54,6 @@ shared static this() {
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
 	settings.port = 8181;
 	settings.bindAddresses = [bundle.value("network", "listen")];
-  DataExporter foo = new DataExporter();
 
   auto router = new URLRouter;
   // Some trivial API documentation
@@ -351,7 +350,6 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
 
 void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   enum { ID, NAME }
-  enum { TYPE, ITEM, SYSTEM, LOCATION, MAX_TYPE }
 
   struct lookupBy {
     string cn;
@@ -361,28 +359,26 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   struct lookupType {
     string tn;
     lookupBy[2] a;
+    this(string tn, string cn, string sc) {
+      this.tn = tn;
+      this.a[ID].cn = cn;
+      this.a[ID].sc = sc;
+    }
   }
 
-  lookupType[MAX_TYPE] lookupTable;
-  lookupTable[TYPE].tn = "invTypes";
-  lookupTable[TYPE].a[ID].cn = "typeName";
-  lookupTable[TYPE].a[ID].sc = "typeID";
-  lookupTable[ITEM].tn = "invNames";
-  lookupTable[ITEM].a[ID].cn = "itemName";
-  lookupTable[ITEM].a[ID].sc = "itemID";
-  lookupTable[SYSTEM].tn = "mapSolarSystems";
-  lookupTable[SYSTEM].a[ID].cn = "solarSystemName";
-  lookupTable[SYSTEM].a[ID].sc = "solarSystemID";
-  lookupTable[LOCATION].tn = "mapDenormalize";
-  lookupTable[LOCATION].a[ID].cn = "itemName";
-  lookupTable[LOCATION].a[ID].sc = "itemID";
+  lookupType[string] lookupTable;
+  lookupTable["type"] = lookupType("invTypes", "typeName", "typeID");
+  lookupTable["item"] = lookupType("invNames", "itemName", "itemID");
+  lookupTable["system"] = lookupType("mapSolarSystems", "solarSystemName", "solarSystemID");
+  lookupTable["location"] = lookupType("mapDenormalize", "itemName", "itemID");
 
-  for (int i = 0; i < lookupTable.length; i++) {
-    lookupTable[i].a[NAME].cn = lookupTable[i].a[ID].sc;
-    lookupTable[i].a[NAME].sc = lookupTable[i].a[ID].cn;
+  foreach(lu; lookupTable) {
+    lu.a[NAME].cn = lu.a[ID].sc;
+    lu.a[NAME].sc = lu.a[ID].cn;
   }
 
-  int action, lookup, itemID;
+  int action, itemID;
+  string lookup;
   string output, itemName;
   string node_attr, node_attr_val;
   Connection c;
@@ -396,26 +392,12 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     return;
   }
 
-  switch (req.params["item"]) {
-    case "type":
-      lookup = TYPE;
-      break;
+  lookup = req.params["item"].toLower();
 
-    case "item":
-      lookup = ITEM;
-      break;
-
-    case "system":
-      lookup = SYSTEM;
-      break;
-
-    case "location":
-      lookup = LOCATION;
-      break;
-
-    default:
-      res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
-      break;
+  lookupType* p = (lookup in lookupTable);
+  if (p is null) {
+    res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
+    return;
   }
 
   try {
