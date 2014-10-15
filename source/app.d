@@ -351,7 +351,7 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
 
 void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   enum { ID, NAME }
-  enum { TYPE, ITEM, SYSTEM, LOCATION }
+  enum { TYPE, ITEM, SYSTEM, LOCATION, MAX_TYPE }
 
   struct lookupBy {
     string cn;
@@ -363,7 +363,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     lookupBy[2] a;
   }
 
-  lookupType[4] lookupTable;
+  lookupType[MAX_TYPE] lookupTable;
   lookupTable[TYPE].tn = "invTypes";
   lookupTable[TYPE].a[ID].cn = "typeName";
   lookupTable[TYPE].a[ID].sc = "typeID";
