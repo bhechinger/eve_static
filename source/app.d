@@ -7,6 +7,7 @@ import std.conv;
 import onyx.config.bundle;
 import std.variant;
 import vibe.textfilter.html;
+import data_formatter;
 
 MysqlDB mdb;
 string db_version;
@@ -53,6 +54,7 @@ shared static this() {
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
 	settings.port = 8181;
 	settings.bindAddresses = [bundle.value("network", "listen")];
+  DataExporter foo = new DataExporter();
 
   auto router = new URLRouter;
   // Some trivial API documentation
