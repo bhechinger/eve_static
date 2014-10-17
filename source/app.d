@@ -9,6 +9,7 @@ import std.variant;
 import vibe.textfilter.html;
 import data_formatter;
 
+enum { ID, NAME }
 MysqlDB mdb;
 string db_version;
 string[] curTables;
@@ -60,24 +61,24 @@ shared static this() {
   router.get("/help", &printHelp);
 
   // Get a list of the available tables
-  router.get("/tables/list", &getTableList);
-  router.get("/tables/list/:format", &getTableList);
+  router.get("/tables/list", &getTableListHandler);
+  router.get("/tables/list/:format", &getTableListHandler);
 
   // Get all the rows of a specific table
-  router.get("/table/:tableName", &getTable);
-  router.get("/table/:tableName/:format", &getTable);
+  router.get("/table/:tableName", &getTableHandler);
+  router.get("/table/:tableName/:format", &getTableHandler);
 
   // Get a list of the columns in a table
-  router.get("/columns/:tableName", &getColumnList);
-  router.get("/columns/:tableName/:format", &getColumnList);
+  router.get("/columns/:tableName", &getColumnListHandler);
+  router.get("/columns/:tableName/:format", &getColumnListHandler);
 
   // Lookup by ID and return Name
-  router.get("/lookup/:item/byID/:itemID", &lookupItem);
-  router.get("/lookup/:item/byID/:itemID/:format", &lookupItem);
+  router.get("/lookup/:item/byID/:itemID", &lookupItemHandler);
+  router.get("/lookup/:item/byID/:itemID/:format", &lookupItemHandler);
 
   // Lookup by Name and return ID
-  router.get("/lookup/:item/byName/:itemName", &lookupItem);
-  router.get("/lookup/:item/byName/:itemName/:format", &lookupItem);
+  router.get("/lookup/:item/byName/:itemName", &lookupItemHandler);
+  router.get("/lookup/:item/byName/:itemName/:format", &lookupItemHandler);
 
 	listenHTTP(settings, router);
 
@@ -131,7 +132,11 @@ void printHelp(HTTPServerRequest req, HTTPServerResponse res) {
   res.render!("index.dt", req);
 }
 
-void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
+void getTableListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  res.writeBody(getTableList(getFormat(req)));
+}
+
+string getTableList(string format) {
   XmlNode root = createRootElement();
   Connection c;
 
@@ -139,7 +144,7 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
     c = getDBConnection();
     scope(exit) c.close();
 
-    switch (getFormat(req)) {
+    switch (format) {
       case "xml":
       case "exml":
       default:
@@ -148,28 +153,29 @@ void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
           tables.addChild(new XmlNode(tbls));
         }
         root.addChild(tables);
-        if (getFormat(req) == "exml") {
-	        res.writeBody(htmlEscape(root.toPrettyString));
+        if (format == "exml") {
+	        return(htmlEscape(root.toPrettyString));
         } else {
-	        res.writeBody(root.toPrettyString);
+	        return(root.toPrettyString);
         }
-        break;
 
       case "text":
         string output;
         foreach(tbls; curTables) {
           output ~= tbls ~ "\n";
         }
-        res.writeBody(output);
-        break;
+        return(output);
     }
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
+    return(getErrorResponse(e1.msg, format));
   }
 }
 
-void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
-  string table = req.params["tableName"];
+void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  res.writeBody(getColumnList(getFormat(req), req.params["tableName"]));
+}
+
+string getColumnList(string format, string table) {
   XmlNode root = createRootElement();
 
   try {
@@ -177,7 +183,7 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
     getDBConnection();
     auto curColumns = md.columns(table);
 
-    switch (getFormat(req)) {
+    switch (format) {
       case "xml":
       case "exml":
       default:
@@ -186,23 +192,21 @@ void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
           columns.addChild(new XmlNode(cols.name));
         }
         root.addChild(columns);
-        if (getFormat(req) == "exml") {
-	        res.writeBody(htmlEscape(root.toPrettyString));
+        if (format == "exml") {
+	        return(htmlEscape(root.toPrettyString));
         } else {
-	        res.writeBody(root.toPrettyString);
+	        return(root.toPrettyString);
         }
-        break;
 
       case "text":
         string output;
         foreach(cols; curColumns) {
           output ~= cols.name ~ "\n";
         }
-        res.writeBody(output);
-        break;
+        return(output);
     }
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
+    return(getErrorResponse(e1.msg, format));
   }
 }
 
@@ -237,13 +241,12 @@ string generateSQLParams(ulong count) {
   return(params);
 }
 
-void getTable(HTTPServerRequest req, HTTPServerResponse res) {
-  auto col_filter_r = req.query.get("cols");
-  auto match_col = req.query.get("match_col");
-  auto match_filter_r = req.query.get("match_filter");
-  auto match_filter = split(match_filter_r, ",");
+void getTableHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  res.writeBody(getTable(getFormat(req), req.query.get("cols"), req.query.get("match_col"), req.query.get("match_filter"), req.params["tableName"]));
+}
 
-  string table = req.params["tableName"];
+string getTable(string format, string col_filter_r, string match_col, string match_filter_r, string table) {
+  auto match_filter = split(match_filter_r, ",");
   bool table_found = false;
   Connection c;
   XmlNode root = createRootElement();
@@ -258,13 +261,11 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
       }
     }
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
-    return;
+    return(getErrorResponse(e1.msg, format));
   }
 
   if (!table_found) {
-    res.writeBody(getErrorResponse("No such table: " ~ table, getFormat(req)));
-    return;
+    return(getErrorResponse("No such table: " ~ table, format));
   }
 
   ResultSet results;
@@ -308,11 +309,9 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
     command.bindParameters(va);
     results = command.execPreparedResult();
   } catch (AssertError e1) {
-    res.writeBody(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", getFormat(req)));
-    return;
+    return(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", format));
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
-    return;
+    return(getErrorResponse(e1.msg, format));
   }
 
   XmlNode node = new XmlNode(table).setAttribute("rowsReturned", results.length);
@@ -332,24 +331,44 @@ void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   }
 
   root.addChild(node);
-  switch (getFormat(req)) {
+  switch (format) {
     case "xml":
     default:
-	    res.writeBody(root.toPrettyString);
-      break;
+	    return(root.toPrettyString);
 
     case "exml":
-	    res.writeBody(htmlEscape(root.toPrettyString));
-      break;
+	    return(htmlEscape(root.toPrettyString));
 
     case "text":
-      res.writeBody("ERROR: getTable doesn't currently support 'text' as an output format");
-      break;
+      return("ERROR: getTable doesn't currently support 'text' as an output format");
   }
 }
 
-void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
-  enum { ID, NAME }
+void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  string itemName, item = req.params["item"];
+  int action, itemID;
+  string format = getFormat(req);
+
+  try {
+    itemID = req.params["itemID"].to!int;
+    action = ID;
+  } catch (ConvException) {
+    res.writeBody(getErrorResponse("Not a valid numeric ID: " ~ itemID.to!string, format));
+  } catch (RangeError) {
+    // ignoring
+  }
+
+  try {
+    itemName = req.params["itemName"];
+    action = NAME;
+  } catch (RangeError) {
+    // ignoring
+  }
+
+  res.writeBody(lookupItem(format, item, itemID, itemName, action));
+}
+
+string lookupItem(string format, string item, int itemID, string itemName, int action) {
 
   struct lookupBy {
     string cn;
@@ -377,9 +396,8 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     lu.a[NAME].sc = lu.a[ID].cn;
   }
 
-  int action, itemID;
   string lookup;
-  string output, itemName;
+  string output;
   string node_attr, node_attr_val;
   Connection c;
   XmlNode root = createRootElement;
@@ -388,32 +406,14 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
     c = getDBConnection();
     scope(exit) c.close();
   } catch (Exception e1) {
-    res.writeBody(getErrorResponse(e1.msg, getFormat(req)));
-    return;
+    return(getErrorResponse(e1.msg, format));
   }
 
-  lookup = req.params["item"].toLower();
+  lookup = item.toLower();
 
   lookupType* p = (lookup in lookupTable);
   if (p is null) {
-    res.writeBody(getErrorResponse("Invalid lookup type: " ~ req.params["item"], getFormat(req)));
-    return;
-  }
-
-  try {
-    itemID = req.params["itemID"].to!int;
-    action = ID;
-  } catch (ConvException) {
-    res.writeBody(getErrorResponse("Not a valid numeric ID: " ~ req.params["itemID"], getFormat(req)));
-  } catch (RangeError) {
-    // ignoring
-  }
-
-  try {
-    itemName = req.params["itemName"];
-    action = NAME;
-  } catch (RangeError) {
-    // ignoring
+    return(getErrorResponse("Invalid lookup type: " ~ item, format));
   }
 
   ResultSet results;
@@ -427,7 +427,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
       command.bindParameter(itemID, 0);
       results = command.execPreparedResult();
       if (!results.length) {
-        res.writeBody(getErrorResponse("No such ID: " ~ itemID.to!string, getFormat(req)));
+        return(getErrorResponse("No such ID: " ~ itemID.to!string, format));
       }
       try {
         output = results[0][0].get!string;
@@ -443,7 +443,7 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
       command.bindParameter(itemName, 0);
       results = command.execPreparedResult();
       if (!results.length) {
-        res.writeBody(getErrorResponse("No such Name: " ~ itemName, getFormat(req)));
+        return(getErrorResponse("No such Name: " ~ itemName, format));
       }
       output = results[0][0].to!string;
       node_attr = "name";
@@ -451,24 +451,21 @@ void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
       break;
 
     default:
-      res.writeBody(getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, getFormat(req)));
-      return;
+      return(getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format));
   }
 
-  switch (getFormat(req)) {
+  switch (format) {
     case "xml":
     case "exml":
     default:
       root.addChild(new XmlNode(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
-      if (getFormat(req) == "exml") {
-        res.writeBody(htmlEscape(root.toPrettyString));
+      if (format == "exml") {
+        return(htmlEscape(root.toPrettyString));
       } else {
-        res.writeBody(root.toPrettyString);
+        return(root.toPrettyString);
       }
-      break;
 
     case "text":
-      res.writeBody(output);
-      break;
+      return(output);
   }
 }
