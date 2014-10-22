@@ -80,6 +80,8 @@ shared static this() {
   router.get("/lookup/:item/byName/:itemName", &lookupItemHandler);
   router.get("/lookup/:item/byName/:itemName/:format", &lookupItemHandler);
 
+  router.get("/get/blueprint/materials/:direction/:blueprint", &getBlueprintMatsHandler);
+  router.get("/get/blueprint/materials/:direction/:blueprint/:format", &getBlueprintMatsHandler);
 	listenHTTP(settings, router);
 
 	logInfo("Please open http://127.0.0.1:8181/ in your browser.");
@@ -369,7 +371,6 @@ void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
 }
 
 string lookupItem(string format, string item, int itemID, string itemName, int action) {
-
   struct lookupBy {
     string cn;
     string sc;
@@ -459,6 +460,120 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
     case "exml":
     default:
       root.addChild(new XmlNode(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
+      if (format == "exml") {
+        return(htmlEscape(root.toPrettyString));
+      } else {
+        return(root.toPrettyString);
+      }
+
+    case "text":
+      return(output);
+  }
+}
+
+int getDirection(string direction) {
+  switch(direction) {
+    case "byID":
+      return(ID);
+
+    case "byName":
+      return(NAME);
+
+    default:
+      return(-1);
+  }
+}
+
+void getBlueprintMatsHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  int me, runs, direction = getDirection(req.params["direction"]);
+
+  if (direction == -1) {
+    res.writeBody(getErrorResponse("Invalid direction: " ~ req.params["direction"], getFormat(req)));
+    return;
+  }
+
+  try {
+    me = req.query.get("me").to!int;
+    if (me > 10) {
+      res.writeBody(getErrorResponse("Invalid ME '" ~ me.to!string ~ "', proper values are 1-10", getFormat(req)));
+      return;
+    }
+  } catch (ConvException) {
+    me = 0;
+  }
+
+  try {
+    runs = req.query.get("runs").to!int;
+  } catch (ConvException) {
+    runs = 1;
+  }
+
+  res.writeBody(getBlueprintMats(getFormat(req), req.params["blueprint"], direction, me, runs));
+}
+
+string getBlueprintMats(string format, string blueprint, int direction, int me, int runs) {
+  XmlNode root = createRootElement;
+  Connection c;
+  int typeID;
+  string typeName;
+
+  switch(direction) {
+    case ID:
+      typeID = blueprint.to!int;
+      typeName = lookupItem("text", "type", typeID, null, ID);
+      break;
+
+    case NAME:
+      typeID = lookupItem("text", "type", 0, blueprint, NAME).to!int;
+      typeName = blueprint;
+      break;
+
+    default:
+      // This won't happen
+      break;
+  }
+
+  try {
+    c = getDBConnection();
+    scope(exit) c.close();
+  } catch (Exception e1) {
+    return(getErrorResponse(e1.msg, format));
+  }
+
+  ResultSet results;
+
+  auto command = new Command(c);
+  command.sql = "SELECT materialTypeID, quantity FROM industryActivityMaterials WHERE typeID = ? AND activityID = 1";
+  command.prepare;
+  command.bindParameter(typeID, 0);
+  results = command.execPreparedResult();
+
+  if (!results.length) {
+    return(getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format));
+  }
+
+  string output = typeName ~"\n";
+  foreach (row; results) {
+    string material = lookupItem("text", "type", row[0].get!int, null, ID);
+    int quantity = row[1].get!int;
+
+    switch (format) {
+      case "xml":
+      case "exml":
+      default:
+        root.addChild(new XmlNode(material).setCData(quantity.to!string));
+        break;
+
+      case "text":
+        output ~= "Material: " ~ material ~ " quantity: " ~ quantity.to!string ~ "\n";
+        break;
+    }
+  }
+
+  switch (format) {
+    case "xml":
+    case "exml":
+    default:
       if (format == "exml") {
         return(htmlEscape(root.toPrettyString));
       } else {

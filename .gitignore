@@ -4,3 +4,4 @@ misc/mysql-latest.tar.bz2.md5
 misc/mysql-latest.tar.bz2.md5.current
 misc/scratch/*
 conf/eve_static.conf
+dub.selections.json
