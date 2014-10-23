@@ -1,3 +1,8 @@
+import vibe.data.json;
+import kxml.xml;
+//import std.stdio;
+import std.conv;
+
 class DataSetError : Exception {
   this(string msg) {
     super(msg);
@@ -63,13 +68,13 @@ class DataSet {
 	/// Set an attribute to an integer value (stored internally as a string).
 	/// The attribute is created if it doesn't exist.
 	DataSet setAttribute(string name, long value) {
-		return setAttribute(name, tostring(value));
+		return setAttribute(name, value.to!string);
 	}
 
 	/// Set an attribute to a float value (stored internally as a string).
 	/// The attribute is created if it doesn't exist.
 	DataSet setAttribute(string name, float value) {
-		return setAttribute(name, tostring(value));
+		return setAttribute(name, value.to!string);
 	}
 
 	/// Remove the attribute with name.
@@ -112,7 +117,9 @@ class DataSet {
 
 	/// Add a child Node of data (text).
 	DataSet addData(string data) {
-		addChild(data);
+    auto d = new Data;
+    d.setData(data);
+		addChild(d);
 		return this;
 	}
 
@@ -178,14 +185,102 @@ class DataSet {
   // TODO: This needs review
 	/// This function dumps the xml structure to a string with no newlines and no linefeeds to be output.
 	override string toString() {
+    return(generateJson().toString());
+  }
+  alias toString toJson;
+
+	string toPrettyString() {
+    return(generateJson().toPrettyString());
+  }
+  alias toPrettyString toPrettyJson;
+
+  string toXML() {
+    return(generateXML().toString());
+  }
+
+  string toPrettyXML() {
+    return(generateXML().toPrettyString());
+  }
+
+  string toText() {
+    return(generateText());
+  }
+
+	Json generateJson() {
+    Json j;
+    j = Json.emptyObject;
+    if (_name) {
+      j.name = _name;
+    }
+
+    if (_attributes) {
+      j.attributes = Json.emptyObject;
+      foreach (attr, value; _attributes) {
+        j.attributes[attr] = value;
+      }
+    }
+
+    if (this.isData()) {
+      j.data = this.getData();
+    }
+
+		if (_children.length) {
+      j.children = Json.emptyArray;
+      foreach (child; _children) {
+			  j.children ~= child.generateJson();
+      }
+		}
+
+		return j;
+	}
+
+  XmlNode generateXML() {
+    XmlNode x = new XmlNode(_name);
+
+    if (_attributes) {
+      foreach (attr, value; _attributes) {
+        x.setAttribute(attr, value);
+      }
+    }
+
+    if (this.isData()) {
+      x.addCData(this.getData());
+    }
 
 		if (_children.length) {
       foreach (child; _children) {
-			  tmp ~= child.toString();
+			  x.addChild(child.generateXML());
       }
 		}
-		return tmp;
-	}
+
+		return x;
+  }
+
+  string generateText() {
+    string t;
+
+    if(_name) {
+      t ~= _name;
+    }
+
+    if (_attributes) {
+      foreach (attr, value; _attributes) {
+        t ~= " - " ~ attr ~ ": " ~ value;
+      }
+    }
+
+    if (this.isData()) {
+      t ~= "  " ~ this.getData();
+    }
+
+		if (_children.length) {
+      foreach (child; _children) {
+        t ~= "\n" ~ child.generateText();
+      }
+		}
+
+		return t;
+  }
 
 	/// Add array of nodes directly into this node as children.
 	void addChildren(DataSet[] newChildren) {
