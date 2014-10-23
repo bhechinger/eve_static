@@ -7,7 +7,8 @@ import std.conv;
 import onyx.config.bundle;
 import std.variant;
 import vibe.textfilter.html;
-import data_formatter;
+import memcached4d;
+//import data_formatter;
 
 enum { ID, NAME }
 MysqlDB mdb;
@@ -15,9 +16,12 @@ string db_version;
 string[] curTables;
 MetaData md;
 bool refresh_db = true;
+MemcachedClient cache;
 
 string getDSN() {
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
+  // TODO: Config file stuff all needs to be looked at. This is just here for temporary.
+  cache = memcachedConnect(bundle.value("memcached", "servers"));
   auto host = bundle.value("database", "host");
   auto port = bundle.value("database", "port");
   auto user = bundle.value("database", "user");
@@ -297,11 +301,18 @@ string getTable(string format, string col_filter_r, string match_col, string mat
      // res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
     //}
 
+    string memCacheKey;
     if (match_col) {
+      memCacheKey = col_filter ~ "::" ~ table ~ "::" ~ match_col;
+      foreach (f; match_filter) {
+        memCacheKey ~= "::" ~ f;
+      }
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
     } else {
+      memCacheKey = col_filter ~ "::" ~ table;
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table;
     }
+
     command.prepare;
     Variant[] va;
     va.length = match_filter.length;
@@ -310,6 +321,17 @@ string getTable(string format, string col_filter_r, string match_col, string mat
     }
     command.bindParameters(va);
     results = command.execPreparedResult();
+
+    auto cached = cache.get!string(memCacheKey);
+    writeln("wtf:", memCacheKey);
+    if (!cached) {
+      writeln("pushing data to ", memCacheKey, ": ", results);
+      if (cache.store(memCacheKey, results) == RETURN_STATE.SUCCESS) {
+        cached = cache.get!string(memCacheKey);
+      }
+    }
+    writeln("MEM: ", cached);
+
   } catch (AssertError e1) {
     return(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", format));
   } catch (Exception e1) {
