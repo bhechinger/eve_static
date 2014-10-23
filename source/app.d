@@ -6,9 +6,8 @@ import mysql.db;
 import std.conv;
 import onyx.config.bundle;
 import std.variant;
-import vibe.textfilter.html;
 import memcached4d;
-//import data_formatter;
+import dataset;
 
 enum { ID, NAME }
 MysqlDB mdb;
@@ -28,7 +27,7 @@ string getDSN() {
   auto pwd = bundle.value("database", "pwd");
   auto db = bundle.value("database", "db");
   db_version = bundle.value("database", "db_version");
-  return("host=" ~ host ~ ";port=" ~ port ~ ";user=" ~ user ~ ";pwd=" ~ pwd ~ ";db=" ~ db);
+  return "host=" ~ host ~ ";port=" ~ port ~ ";user=" ~ user ~ ";pwd=" ~ pwd ~ ";db=" ~ db;
 }
 
 Connection getDBConnection() {
@@ -51,7 +50,7 @@ Connection getDBConnection() {
     logError("Exception: " ~ e1.msg);
   }
 
-  return(c);
+  return c;
 }
 
 shared static this() {
@@ -91,8 +90,8 @@ shared static this() {
 	logInfo("Please open http://127.0.0.1:8181/ in your browser.");
 }
 
-XmlNode createRootElement() {
-  return(new XmlNode("eve_static").setAttribute("db_version", db_version).setAttribute("error", false));
+DataSet createRootElement() {
+  return new DataSet("eve_static").setAttribute("db_version", db_version).setAttribute("error", false);
 }
 
 string getFormat(HTTPServerRequest req) {
@@ -102,36 +101,24 @@ string getFormat(HTTPServerRequest req) {
     foreach(fmt; valid_formats) {
       string format = req.params["format"];
       if (fmt == format.toLower()) {
-        return(format);
+        return format;
       }
     }
   } catch (RangeError) {
     // Fallthrough to XML
   }
-  return("xml");
+  return "xml";
 }
 
 string getErrorResponse(string msg, string format) {
   refresh_db = true;
 
-  switch (format) {
-    case "xml":
-    case "exml":
-    default:
-      // XML is the default
-      XmlNode root = createRootElement();
-      root.setAttribute("error", true);
-      root.addChild(new XmlNode("error").addCData(msg));
-      logError("Exception: " ~ msg);
-      if (format == "exml") {
-        return(htmlEscape(root.toPrettyString));
-      } else {
-        return(root.toPrettyString);
-      }
+  DataSet root = createRootElement();
+  root.setAttribute("error", true);
+  root.addChild(new DataSet("error").addData(msg));
+  logError("Exception: " ~ msg);
 
-    case "text":
-      return("ERROR: " ~ msg);
-  }
+  return root.getPrettyOutput(format);
 }
 
 void printHelp(HTTPServerRequest req, HTTPServerResponse res) {
@@ -143,37 +130,22 @@ void getTableListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 }
 
 string getTableList(string format) {
-  XmlNode root = createRootElement();
+  DataSet root = createRootElement();
   Connection c;
 
   try {
     c = getDBConnection();
     scope(exit) c.close();
 
-    switch (format) {
-      case "xml":
-      case "exml":
-      default:
-        XmlNode tables = new XmlNode("tables");
-        foreach(tbls; curTables) {
-          tables.addChild(new XmlNode(tbls));
-        }
-        root.addChild(tables);
-        if (format == "exml") {
-	        return(htmlEscape(root.toPrettyString));
-        } else {
-	        return(root.toPrettyString);
-        }
-
-      case "text":
-        string output;
-        foreach(tbls; curTables) {
-          output ~= tbls ~ "\n";
-        }
-        return(output);
+    DataSet tables = new DataSet("tables");
+    foreach(tbls; curTables) {
+      tables.addChild(new DataSet(tbls));
     }
+    root.addChild(tables);
+    return root.getPrettyOutput(format);
+
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 }
 
@@ -182,56 +154,41 @@ void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 }
 
 string getColumnList(string format, string table) {
-  XmlNode root = createRootElement();
+  DataSet root = createRootElement();
 
   try {
     // This isn't really needed for any other reason than to jog the DB connection if needed.
     getDBConnection();
     auto curColumns = md.columns(table);
 
-    switch (format) {
-      case "xml":
-      case "exml":
-      default:
-        XmlNode columns = new XmlNode("columns").setAttribute("table", table);
-        foreach(cols; curColumns) {
-          columns.addChild(new XmlNode(cols.name));
-        }
-        root.addChild(columns);
-        if (format == "exml") {
-	        return(htmlEscape(root.toPrettyString));
-        } else {
-	        return(root.toPrettyString);
-        }
-
-      case "text":
-        string output;
-        foreach(cols; curColumns) {
-          output ~= cols.name ~ "\n";
-        }
-        return(output);
+    DataSet columns = new DataSet("columns").setAttribute("table", table);
+    foreach(cols; curColumns) {
+      columns.addChild(new DataSet(cols.name));
     }
+    root.addChild(columns);
+    return root.getPrettyOutput(format);
+
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 }
 
 bool stringInArray(string str, string[] arr) {
   foreach (tstr; arr) {
     if (str == tstr) {
-      return(true);
+      return true;
     }
   }
-  return(false);
+  return false;
 }
 
 bool colInCurColumns(string col, ColumnInfo[] curColumns) {
   foreach (ccol; curColumns) {
     if (col == ccol.name) {
-      return(true);
+      return true;
     }
   }
-  return(false);
+  return false;
 }
 
 string generateSQLParams(ulong count) {
@@ -244,7 +201,7 @@ string generateSQLParams(ulong count) {
       params = "?";
     }
   }
-  return(params);
+  return params;
 }
 
 void getTableHandler(HTTPServerRequest req, HTTPServerResponse res) {
@@ -255,7 +212,7 @@ string getTable(string format, string col_filter_r, string match_col, string mat
   auto match_filter = split(match_filter_r, ",");
   bool table_found = false;
   Connection c;
-  XmlNode root = createRootElement();
+  DataSet root = createRootElement();
 
   try {
     c = getDBConnection();
@@ -267,11 +224,11 @@ string getTable(string format, string col_filter_r, string match_col, string mat
       }
     }
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 
   if (!table_found) {
-    return(getErrorResponse("No such table: " ~ table, format));
+    return getErrorResponse("No such table: " ~ table, format);
   }
 
   ResultSet results;
@@ -333,18 +290,18 @@ string getTable(string format, string col_filter_r, string match_col, string mat
     writeln("MEM: ", cached);
 
   } catch (AssertError e1) {
-    return(getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", format));
+    return getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", format);
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 
-  XmlNode node = new XmlNode(table).setAttribute("rowsReturned", results.length);
+  DataSet node = new DataSet(table).setAttribute("rowsReturned", results.length);
 
   foreach (row; results) {
-    XmlNode row_xml = new XmlNode("row");
+    DataSet row_xml = new DataSet("row");
 
     foreach (foo; results.colNames) {
-      auto result_col = new XmlNode(foo);
+      auto result_col = new DataSet(foo);
       if (!row.isNull(results.colNameIndicies[foo])) {
         result_col.addCData(row[results.colNameIndicies[foo]].to!string());
       }
@@ -355,17 +312,7 @@ string getTable(string format, string col_filter_r, string match_col, string mat
   }
 
   root.addChild(node);
-  switch (format) {
-    case "xml":
-    default:
-	    return(root.toPrettyString);
-
-    case "exml":
-	    return(htmlEscape(root.toPrettyString));
-
-    case "text":
-      return("ERROR: getTable doesn't currently support 'text' as an output format");
-  }
+  return root.getPrettyOutput(format);
 }
 
 void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
@@ -423,20 +370,20 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
   string output;
   string node_attr, node_attr_val;
   Connection c;
-  XmlNode root = createRootElement;
+  DataSet root = createRootElement;
 
   try {
     c = getDBConnection();
     scope(exit) c.close();
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 
   lookup = item.toLower();
 
   lookupType* p = (lookup in lookupTable);
   if (p is null) {
-    return(getErrorResponse("Invalid lookup type: " ~ item, format));
+    return getErrorResponse("Invalid lookup type: " ~ item, format);
   }
 
   ResultSet results;
@@ -450,7 +397,7 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
       command.bindParameter(itemID, 0);
       results = command.execPreparedResult();
       if (!results.length) {
-        return(getErrorResponse("No such ID: " ~ itemID.to!string, format));
+        return getErrorResponse("No such ID: " ~ itemID.to!string, format);
       }
       try {
         output = results[0][0].get!string;
@@ -466,7 +413,7 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
       command.bindParameter(itemName, 0);
       results = command.execPreparedResult();
       if (!results.length) {
-        return(getErrorResponse("No such Name: " ~ itemName, format));
+        return getErrorResponse("No such Name: " ~ itemName, format);
       }
       output = results[0][0].to!string;
       node_attr = "name";
@@ -474,35 +421,23 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
       break;
 
     default:
-      return(getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format));
+      return getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format);
   }
 
-  switch (format) {
-    case "xml":
-    case "exml":
-    default:
-      root.addChild(new XmlNode(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
-      if (format == "exml") {
-        return(htmlEscape(root.toPrettyString));
-      } else {
-        return(root.toPrettyString);
-      }
-
-    case "text":
-      return(output);
-  }
+  root.addChild(new DataSet(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
+  return root.getPrettyOutput(format);
 }
 
 int getDirection(string direction) {
   switch(direction) {
     case "byID":
-      return(ID);
+      return ID;
 
     case "byName":
-      return(NAME);
+      return NAME;
 
     default:
-      return(-1);
+      return -1;
   }
 }
 
@@ -534,7 +469,7 @@ void getBlueprintMatsHandler(HTTPServerRequest req, HTTPServerResponse res) {
 }
 
 string getBlueprintMats(string format, string blueprint, int direction, int me, int runs) {
-  XmlNode root = createRootElement;
+  DataSet root = createRootElement;
   Connection c;
   int typeID;
   string typeName;
@@ -559,7 +494,7 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
     c = getDBConnection();
     scope(exit) c.close();
   } catch (Exception e1) {
-    return(getErrorResponse(e1.msg, format));
+    return getErrorResponse(e1.msg, format);
   }
 
   ResultSet results;
@@ -571,7 +506,7 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
   results = command.execPreparedResult();
 
   if (!results.length) {
-    return(getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format));
+    return getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format);
   }
 
   string output = typeName ~"\n";
@@ -579,30 +514,8 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
     string material = lookupItem("text", "type", row[0].get!int, null, ID);
     int quantity = row[1].get!int;
 
-    switch (format) {
-      case "xml":
-      case "exml":
-      default:
-        root.addChild(new XmlNode(material).setCData(quantity.to!string));
-        break;
-
-      case "text":
-        output ~= "Material: " ~ material ~ " quantity: " ~ quantity.to!string ~ "\n";
-        break;
-    }
+    root.addChild(new DataSet(material).setCData(quantity.to!string));
   }
 
-  switch (format) {
-    case "xml":
-    case "exml":
-    default:
-      if (format == "exml") {
-        return(htmlEscape(root.toPrettyString));
-      } else {
-        return(root.toPrettyString);
-      }
-
-    case "text":
-      return(output);
-  }
+  return root.getPrettyOutput(format);
 }

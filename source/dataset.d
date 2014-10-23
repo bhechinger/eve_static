@@ -1,3 +1,4 @@
+import vibe.textfilter.html;
 import vibe.data.json;
 import kxml.xml;
 //import std.stdio;
@@ -14,7 +15,7 @@ class DataSet {
 	protected string[string] _attributes;
 	protected DataSet[]      _children;
 
-
+  string valid_formats[] = ["text", "xml", "exml"];
 
 	static this(){}
 
@@ -182,8 +183,43 @@ class DataSet {
 		return _children.length == 0;
 	}
 
-  // TODO: This needs review
-	/// This function dumps the xml structure to a string with no newlines and no linefeeds to be output.
+  string getPrettyOutput(string format) {
+    return getOutput(format, true);
+  }
+
+  string getOutput(string format, bool pretty = false) {
+    if (format !in this.valid_formats) {
+      return("ERROR: Unknown format: " ~ format);
+    }
+
+    switch (format) {
+      case "xml":
+      default:
+        if (pretty) {
+          return(this.toPrettyXML());
+        } else {
+          return(this.toXML());
+        }
+
+      case "exml":
+        if (pretty) {
+          return(htmlEscape(this.toPrettyXML()));
+        } else {
+          return(htmlEscape(this.toXML()));
+        }
+
+      case "json":
+        if (pretty) {
+          return(this.toPrettyJson());
+        } else {
+          return(this.toJson());
+        }
+
+      case "text":
+        return(this.toText());
+    }
+  }
+
 	override string toString() {
     return(generateJson().toString());
   }
