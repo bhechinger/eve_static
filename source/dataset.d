@@ -1,7 +1,7 @@
 import vibe.textfilter.html;
 import vibe.data.json;
 import kxml.xml;
-//import std.stdio;
+import std.string;
 import std.conv;
 
 class DataSetError : Exception {
@@ -15,7 +15,7 @@ class DataSet {
 	protected string[string] _attributes;
 	protected DataSet[]      _children;
 
-  string valid_formats[] = ["text", "xml", "exml"];
+  string valid_formats[] = ["text", "xml", "exml", "json"];
 
 	static this(){}
 
@@ -126,7 +126,9 @@ class DataSet {
 
 	/// Check to see if this node is a Data node.
 	final bool isData() {
-		if (cast(Data)this) return true;
+		if (cast(Data)this) {
+      return true;
+    }
 		return false;
 	}
 
@@ -187,59 +189,71 @@ class DataSet {
     return getOutput(format, true);
   }
 
+  bool formatIsValid(string format) {
+    foreach(fmt; this.valid_formats) {
+      if (fmt == format.toLower()) {
+        // We found it.
+        return true;
+      }
+    }
+
+    // We didn't find it.
+    return false;
+  }
+
   string getOutput(string format, bool pretty = false) {
-    if (format !in this.valid_formats) {
-      return("ERROR: Unknown format: " ~ format);
+    if (!formatIsValid(format)) {
+      return "ERROR: Invalid format: " ~ format;
     }
 
     switch (format) {
       case "xml":
       default:
         if (pretty) {
-          return(this.toPrettyXML());
+          return this.toPrettyXML();
         } else {
-          return(this.toXML());
+          return this.toXML();
         }
 
       case "exml":
         if (pretty) {
-          return(htmlEscape(this.toPrettyXML()));
+          return htmlEscape(this.toPrettyXML());
         } else {
-          return(htmlEscape(this.toXML()));
+          return htmlEscape(this.toXML());
         }
 
       case "json":
         if (pretty) {
-          return(this.toPrettyJson());
+          return this.toPrettyJson();
         } else {
-          return(this.toJson());
+          return this.toJson();
         }
 
       case "text":
-        return(this.toText());
+        return this.toText();
     }
   }
 
 	override string toString() {
-    return(generateJson().toString());
+    return generateJson().toString();
   }
   alias toString toJson;
 
 	string toPrettyString() {
-    return(generateJson().toPrettyString());
+    return generateJson().toPrettyString();
   }
   alias toPrettyString toPrettyJson;
 
   string toXML() {
-    return(generateXML().toString());
+    return generateXML().toString();
   }
 
   string toPrettyXML() {
-    return(generateXML().toPrettyString());
+    return generateXML().toPrettyString();
   }
 
   string toText() {
-    return(generateText());
+    return generateText();
   }
 
 	Json generateJson() {
@@ -295,6 +309,7 @@ class DataSet {
   string generateText() {
     string t;
 
+    /*
     if(_name) {
       t ~= _name;
     }
@@ -304,14 +319,15 @@ class DataSet {
         t ~= " - " ~ attr ~ ": " ~ value;
       }
     }
+    */
 
     if (this.isData()) {
-      t ~= "  " ~ this.getData();
+      t = this.getData();
     }
 
 		if (_children.length) {
       foreach (child; _children) {
-        t ~= "\n" ~ child.generateText();
+        t ~= child.generateText();
       }
 		}
 

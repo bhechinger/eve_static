@@ -11,22 +11,24 @@ import dataset;
 
 enum { ID, NAME }
 MysqlDB mdb;
-string db_version;
+string host, port, user, pwd, db, db_version;
 string[] curTables;
 MetaData md;
 bool refresh_db = true;
 MemcachedClient cache;
 
-string getDSN() {
+void getConfig() {
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
-  // TODO: Config file stuff all needs to be looked at. This is just here for temporary.
   cache = memcachedConnect(bundle.value("memcached", "servers"));
-  auto host = bundle.value("database", "host");
-  auto port = bundle.value("database", "port");
-  auto user = bundle.value("database", "user");
-  auto pwd = bundle.value("database", "pwd");
-  auto db = bundle.value("database", "db");
+  host = bundle.value("database", "host");
+  port = bundle.value("database", "port");
+  user = bundle.value("database", "user");
+  pwd = bundle.value("database", "pwd");
+  db = bundle.value("database", "db");
   db_version = bundle.value("database", "db_version");
+}
+
+string getDSN() {
   return "host=" ~ host ~ ";port=" ~ port ~ ";user=" ~ user ~ ";pwd=" ~ pwd ~ ";db=" ~ db;
 }
 
@@ -35,6 +37,7 @@ Connection getDBConnection() {
 
   try {
     if (refresh_db) {
+      getConfig();
       mdb = new MysqlDB(getDSN());
     }
 
@@ -59,6 +62,7 @@ shared static this() {
 	settings.port = 8181;
 	settings.bindAddresses = [bundle.value("network", "listen")];
 
+  getConfig();
   auto router = new URLRouter;
   // Some trivial API documentation
   router.get("/help", &printHelp);
@@ -95,7 +99,8 @@ DataSet createRootElement() {
 }
 
 string getFormat(HTTPServerRequest req) {
-  string valid_formats[] = ["text", "xml", "exml"];
+  // TODO: This needs to be moved to DataSet I think.
+  string valid_formats[] = ["text", "xml", "exml", "json"];
 
   try {
     foreach(fmt; valid_formats) {
@@ -131,22 +136,32 @@ void getTableListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 
 string getTableList(string format) {
   DataSet root = createRootElement();
+  string memCacheKey = "getTableList::" ~ format;
   Connection c;
 
-  try {
-    c = getDBConnection();
-    scope(exit) c.close();
+  string cached = cache.get!string(memCacheKey);
+  if (!cached) {
+    try {
+      c = getDBConnection();
+      scope(exit) c.close();
 
-    DataSet tables = new DataSet("tables");
-    foreach(tbls; curTables) {
-      tables.addChild(new DataSet(tbls));
+      DataSet tables = new DataSet("tables");
+      foreach(tbls; curTables) {
+        tables.addChild(new DataSet(tbls));
+      }
+      root.addChild(tables);
+
+      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+        cached = root.getPrettyOutput(format);
+      } else {
+        return getErrorResponse("Error caching data", format);
+      }
+
+    } catch (Exception e1) {
+      return getErrorResponse(e1.msg, format);
     }
-    root.addChild(tables);
-    return root.getPrettyOutput(format);
-
-  } catch (Exception e1) {
-    return getErrorResponse(e1.msg, format);
   }
+  return cached;
 }
 
 void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
@@ -155,22 +170,32 @@ void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 
 string getColumnList(string format, string table) {
   DataSet root = createRootElement();
+  string memCacheKey = "getColumnList::" ~ format ~ "::" ~ table;
 
-  try {
-    // This isn't really needed for any other reason than to jog the DB connection if needed.
-    getDBConnection();
-    auto curColumns = md.columns(table);
+  string cached = cache.get!string(memCacheKey);
+  if (!cached) {
+    try {
+      // This isn't really needed for any other reason than to jog the DB connection if needed.
+      getDBConnection();
+      auto curColumns = md.columns(table);
 
-    DataSet columns = new DataSet("columns").setAttribute("table", table);
-    foreach(cols; curColumns) {
-      columns.addChild(new DataSet(cols.name));
+      DataSet columns = new DataSet("columns").setAttribute("table", table);
+      foreach(cols; curColumns) {
+        columns.addChild(new DataSet(cols.name));
+      }
+      root.addChild(columns);
+      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+        cached = root.getPrettyOutput(format);
+      } else {
+        return getErrorResponse("Error caching data", format);
+      }
+
+    } catch (Exception e1) {
+      return getErrorResponse(e1.msg, format);
     }
-    root.addChild(columns);
-    return root.getPrettyOutput(format);
-
-  } catch (Exception e1) {
-    return getErrorResponse(e1.msg, format);
   }
+
+  return cached;
 }
 
 bool stringInArray(string str, string[] arr) {
@@ -208,6 +233,7 @@ void getTableHandler(HTTPServerRequest req, HTTPServerResponse res) {
   res.writeBody(getTable(getFormat(req), req.query.get("cols"), req.query.get("match_col"), req.query.get("match_filter"), req.params["tableName"]));
 }
 
+// Maybe needs to be refactored so we don't even make the db connection if we have cached data
 string getTable(string format, string col_filter_r, string match_col, string match_filter_r, string table) {
   auto match_filter = split(match_filter_r, ",");
   bool table_found = false;
@@ -260,59 +286,56 @@ string getTable(string format, string col_filter_r, string match_col, string mat
 
     string memCacheKey;
     if (match_col) {
-      memCacheKey = col_filter ~ "::" ~ table ~ "::" ~ match_col;
+      memCacheKey = format ~ "::" ~ col_filter ~ "::" ~ table ~ "::" ~ match_col;
       foreach (f; match_filter) {
         memCacheKey ~= "::" ~ f;
       }
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
     } else {
-      memCacheKey = col_filter ~ "::" ~ table;
+      memCacheKey = format ~ "::" ~ col_filter ~ "::" ~ table;
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table;
     }
 
-    command.prepare;
-    Variant[] va;
-    va.length = match_filter.length;
-    for (int i = 0; i < match_filter.length; i++) {
-      va[i] = match_filter[i];
-    }
-    command.bindParameters(va);
-    results = command.execPreparedResult();
+    string cached = cache.get!string(memCacheKey);
 
-    auto cached = cache.get!string(memCacheKey);
-    writeln("wtf:", memCacheKey);
     if (!cached) {
-      writeln("pushing data to ", memCacheKey, ": ", results);
-      if (cache.store(memCacheKey, results) == RETURN_STATE.SUCCESS) {
-        cached = cache.get!string(memCacheKey);
+      command.prepare;
+      Variant[] va;
+      va.length = match_filter.length;
+      for (int i = 0; i < match_filter.length; i++) {
+        va[i] = match_filter[i];
+      }
+      command.bindParameters(va);
+      results = command.execPreparedResult();
+      DataSet node = new DataSet(table).setAttribute("rowsReturned", results.length);
+
+     foreach (row; results) {
+        DataSet row_xml = new DataSet("row");
+
+        foreach (foo; results.colNames) {
+          auto result_col = new DataSet(foo);
+          if (!row.isNull(results.colNameIndicies[foo])) {
+            result_col.addData(row[results.colNameIndicies[foo]].to!string());
+          }
+          row_xml.addChild(result_col);
+        }
+
+        node.addChild(row_xml);
+      }
+
+      root.addChild(node);
+
+      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+        cached = root.getPrettyOutput(format);
+      } else {
+        return getErrorResponse("Error caching data", format);
       }
     }
-    writeln("MEM: ", cached);
 
-  } catch (AssertError e1) {
-    return getErrorResponse(e1.msg ~ ": This is a known error with native-mysql. Waiting for it to be fixed.", format);
+    return cached;
   } catch (Exception e1) {
     return getErrorResponse(e1.msg, format);
   }
-
-  DataSet node = new DataSet(table).setAttribute("rowsReturned", results.length);
-
-  foreach (row; results) {
-    DataSet row_xml = new DataSet("row");
-
-    foreach (foo; results.colNames) {
-      auto result_col = new DataSet(foo);
-      if (!row.isNull(results.colNameIndicies[foo])) {
-        result_col.addCData(row[results.colNameIndicies[foo]].to!string());
-      }
-      row_xml.addChild(result_col);
-    }
-
-    node.addChild(row_xml);
-  }
-
-  root.addChild(node);
-  return root.getPrettyOutput(format);
 }
 
 void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
@@ -361,71 +384,89 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
   lookupTable["system"] = lookupType("mapSolarSystems", "solarSystemName", "solarSystemID");
   lookupTable["location"] = lookupType("mapDenormalize", "itemName", "itemID");
 
-  foreach(lu; lookupTable) {
+  foreach(ref lu; lookupTable) {
     lu.a[NAME].cn = lu.a[ID].sc;
     lu.a[NAME].sc = lu.a[ID].cn;
   }
 
-  string lookup;
-  string output;
-  string node_attr, node_attr_val;
-  Connection c;
-  DataSet root = createRootElement;
-
-  try {
-    c = getDBConnection();
-    scope(exit) c.close();
-  } catch (Exception e1) {
-    return getErrorResponse(e1.msg, format);
-  }
-
-  lookup = item.toLower();
-
+  string lookup = item.toLower();
   lookupType* p = (lookup in lookupTable);
   if (p is null) {
     return getErrorResponse("Invalid lookup type: " ~ item, format);
   }
 
-  ResultSet results;
-
-  auto command = new Command(c);
-  command.sql = "SELECT " ~ lookupTable[lookup].a[action].cn ~ " FROM " ~ lookupTable[lookup].tn ~ " WHERE " ~ lookupTable[lookup].a[action].sc ~ " = ?";
-  command.prepare;
-
+  string memCacheKey;
   switch (action) {
     case ID:
-      command.bindParameter(itemID, 0);
-      results = command.execPreparedResult();
-      if (!results.length) {
-        return getErrorResponse("No such ID: " ~ itemID.to!string, format);
-      }
-      try {
-        output = results[0][0].get!string;
-      } catch (VariantException) {
-        // LONGTEXT returns ubyte wihch pisses off conversion
-        output = cast(string)results[0][0].get!(ubyte[]);
-      }
-      node_attr = "id";
-      node_attr_val = itemID.to!string;
+      memCacheKey = "lookupItem::" ~ format ~ "::" ~ lookupTable[lookup].a[action].cn ~ "::" ~ lookupTable[lookup].tn ~ "::" ~ lookupTable[lookup].a[action].sc ~ "::" ~ itemID.to!string;
       break;
 
     case NAME:
-      command.bindParameter(itemName, 0);
-      results = command.execPreparedResult();
-      if (!results.length) {
-        return getErrorResponse("No such Name: " ~ itemName, format);
-      }
-      output = results[0][0].to!string;
-      node_attr = "name";
-      node_attr_val = itemName;
+      memCacheKey = "lookupItem::" ~ format ~ "::" ~ lookupTable[lookup].a[action].cn ~ "::" ~ lookupTable[lookup].tn ~ "::" ~ lookupTable[lookup].a[action].sc ~ "::" ~ itemName;
       break;
 
     default:
-      return getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format);
+      break;
   }
 
-  root.addChild(new DataSet(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setCData(output));
-  return root.getPrettyOutput(format);
+  string output, node_attr, node_attr_val;
+  Connection c;
+  DataSet root = createRootElement;
+
+  string cached = cache.get!string(memCacheKey);
+  if (!cached) {
+    try {
+      c = getDBConnection();
+      scope(exit) c.close();
+    } catch (Exception e1) {
+      return getErrorResponse(e1.msg, format);
+    }
+
+    ResultSet results;
+    auto command = new Command(c);
+    command.sql = "SELECT " ~ lookupTable[lookup].a[action].cn ~ " FROM " ~ lookupTable[lookup].tn ~ " WHERE " ~ lookupTable[lookup].a[action].sc ~ " = ?";
+    command.prepare;
+
+    switch (action) {
+      case ID:
+        command.bindParameter(itemID, 0);
+        results = command.execPreparedResult();
+        if (!results.length) {
+          return getErrorResponse("No such ID: " ~ itemID.to!string, format);
+        }
+        try {
+          output = results[0][0].get!string;
+        } catch (VariantException) {
+          // LONGTEXT returns ubyte wihch pisses off conversion
+          output = cast(string)results[0][0].get!(ubyte[]);
+        }
+        node_attr = "id";
+        node_attr_val = itemID.to!string;
+        break;
+
+      case NAME:
+        command.bindParameter(itemName, 0);
+        results = command.execPreparedResult();
+        if (!results.length) {
+          return getErrorResponse("No such Name: " ~ itemName, format);
+        }
+        output = results[0][0].to!string;
+        node_attr = "name";
+        node_attr_val = itemName;
+        break;
+
+      default:
+        return getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format);
+    }
+
+    root.addChild(new DataSet(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setData(output));
+    if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+      cached = root.getPrettyOutput(format);
+    } else {
+      return getErrorResponse("Error caching data", format);
+    }
+  }
+  return cached;
 }
 
 int getDirection(string direction) {
@@ -490,32 +531,42 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
       break;
   }
 
-  try {
-    c = getDBConnection();
-    scope(exit) c.close();
-  } catch (Exception e1) {
-    return getErrorResponse(e1.msg, format);
+  string memCacheKey = "getBlueprintMats::" ~ format ~ "::" ~ typeName ~ "::" ~ typeID.to!string;
+  string cached = cache.get!string(memCacheKey);
+
+  if (!cached) {
+    try {
+      c = getDBConnection();
+      scope(exit) c.close();
+    } catch (Exception e1) {
+      return getErrorResponse(e1.msg, format);
+    }
+
+    ResultSet results;
+
+    auto command = new Command(c);
+    command.sql = "SELECT materialTypeID, quantity FROM industryActivityMaterials WHERE typeID = ? AND activityID = 1";
+    command.prepare;
+    command.bindParameter(typeID, 0);
+    results = command.execPreparedResult();
+
+    if (!results.length) {
+      return getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format);
+    }
+
+    foreach (row; results) {
+      string material = lookupItem("text", "type", row[0].get!int, null, ID);
+      int quantity = row[1].get!int;
+
+      root.addChild(new DataSet(material).setData(quantity.to!string));
+    }
+
+    if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+      cached = root.getPrettyOutput(format);
+    } else {
+      return getErrorResponse("Error caching data", format);
+    }
   }
 
-  ResultSet results;
-
-  auto command = new Command(c);
-  command.sql = "SELECT materialTypeID, quantity FROM industryActivityMaterials WHERE typeID = ? AND activityID = 1";
-  command.prepare;
-  command.bindParameter(typeID, 0);
-  results = command.execPreparedResult();
-
-  if (!results.length) {
-    return getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format);
-  }
-
-  string output = typeName ~"\n";
-  foreach (row; results) {
-    string material = lookupItem("text", "type", row[0].get!int, null, ID);
-    int quantity = row[1].get!int;
-
-    root.addChild(new DataSet(material).setCData(quantity.to!string));
-  }
-
-  return root.getPrettyOutput(format);
+  return cached;
 }
