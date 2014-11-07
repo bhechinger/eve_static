@@ -59,7 +59,7 @@ Connection getDBConnection() {
 shared static this() {
 	auto settings = new HTTPServerSettings;
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
-	settings.port = 8181;
+	settings.port = bundle.value("network", "port").to!ushort;
 	settings.bindAddresses = [bundle.value("network", "listen")];
 
   getConfig();
@@ -91,7 +91,7 @@ shared static this() {
   router.get("/get/blueprint/materials/:direction/:blueprint/:format", &getBlueprintMatsHandler);
 	listenHTTP(settings, router);
 
-	logInfo("Please open http://127.0.0.1:8181/ in your browser.");
+	logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
 }
 
 DataSet createRootElement() {
