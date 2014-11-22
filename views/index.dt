@@ -34,13 +34,13 @@ html
       li /lookup/location/byName/<i>locationName</i>
       li /lookup/location/byID/<i>locationID</i>
 
-    p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments (IE: http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5)
+    p Tables can be filtered by column name and by the values of a column (basic search function). This is done by specifying the following arguments (IE: http://es.4amlunch.net/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5)
     ul
       li cols - command separated list of column names
       li match_column - the column to search against
       li match_filter - command separated list of the items from the column specified by match_column
 
-    p Data can be returned in a number of formats by appending /<i>format</i> to the end of the URL (IE: http://bart.4amlunch.net:8181/tables/list/text)
+    p Data can be returned in a number of formats by appending /<i>format</i> to the end of the URL (IE: http://es.4amlunch.net/tables/list/text)
     ul
       li XML (the default)
       li text (except /table/<i>tableName</i>)
@@ -48,47 +48,47 @@ html
 
     p Some example output (I appologize for the lousy formatting of the XML. Getting that better formatted is in the works.)
     ul
-      li http://bart.4amlunch.net:8181/help
+      li http://es.4amlunch.net/help
       p This page
 
-      li http://bart.4amlunch.net:8181/tables/list
+      li http://es.4amlunch.net/tables/list
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;tables&gt;&#10;   &lt;agtAgentTypes /&gt;&#10;    &lt;agtAgents /&gt;&#10;    &lt;agtResearchAgents /&gt;&#10;    &lt;certCerts /&gt;&#10;    &lt;certMasteries /&gt;&#10;    &lt;certSkills /&gt;&#10;   &lt;chrAncestries /&gt;&#10;    &lt;chrAttributes /&gt;&#10;    &lt;chrBloodlines /&gt;&#10;    &lt;chrFactions /&gt;&#10;    &lt;chrRaces /&gt;&#10;   &lt;crpActivities /&gt;&#10;    &lt;crpNPCCorporationDivisions /&gt;&#10;   &lt;crpNPCCorporationResearchFields /&gt;&#10;    &lt;crpNPCCorporationTrades /&gt;&#10;    &lt;crpNPCCorporations /&gt;&#10;   &lt;crpNPCDivisions /&gt;&#10;    &lt;dgmAttributeCategories /&gt;&#10;   &lt;dgmAttributeTypes /&gt;&#10;    &lt;dgmEffects /&gt;&#10;   &lt;dgmTypeAttributes /&gt;&#10;    &lt;dgmTypeEffects /&gt;&#10;   &lt;eveIcons /&gt;&#10;   &lt;eveUnits /&gt;&#10;   &lt;industryActivity /&gt;&#10;   &lt;industryActivityMaterials /&gt;&#10;    &lt;industryActivityProbabilities /&gt;&#10;    &lt;industryActivityProducts /&gt;&#10;   &lt;industryActivityRaces /&gt;&#10;    &lt;industryActivitySkills /&gt;&#10;   &lt;industryBlueprints /&gt;&#10;   &lt;invCategories /&gt;&#10;    &lt;invContrabandTypes /&gt;&#10;   &lt;invControlTowerResourcePurposes /&gt;&#10;    &lt;invControlTowerResources /&gt;&#10;   &lt;invFlags /&gt;&#10;   &lt;invGroups /&gt;&#10;    &lt;invItems /&gt;&#10;   &lt;invMarketGroups /&gt;&#10;    &lt;invMetaGroups /&gt;&#10;    &lt;invMetaTypes /&gt;&#10;   &lt;invNames /&gt;&#10;   &lt;invPositions /&gt;&#10;   &lt;invTraits /&gt;&#10;    &lt;invTypeMaterials /&gt;&#10;   &lt;invTypeReactions /&gt;&#10;   &lt;invTypes /&gt;&#10;   &lt;invUniqueNames /&gt;&#10;   &lt;mapCelestialStatistics /&gt;&#10;   &lt;mapConstellationJumps /&gt;&#10;    &lt;mapConstellations /&gt;&#10;    &lt;mapDenormalize /&gt;&#10;   &lt;mapJumps /&gt;&#10;   &lt;mapLandmarks /&gt;&#10;   &lt;mapLocationScenes /&gt;&#10;    &lt;mapLocationWormholeClasses /&gt;&#10;   &lt;mapRegionJumps /&gt;&#10;   &lt;mapRegions /&gt;&#10;   &lt;mapSolarSystemJumps /&gt;&#10;    &lt;mapSolarSystems /&gt;&#10;    &lt;mapUniverse /&gt;&#10;    &lt;planetSchematics /&gt;&#10;   &lt;planetSchematicsPinMap /&gt;&#10;   &lt;planetSchematicsTypeMap /&gt;&#10;    &lt;ramActivities /&gt;&#10;    &lt;ramAssemblyLineStations /&gt;&#10;    &lt;ramAssemblyLineTypeDetailPerCategory /&gt;&#10;   &lt;ramAssemblyLineTypeDetailPerGroup /&gt;&#10;    &lt;ramAssemblyLineTypes /&gt;&#10;   &lt;ramInstallationTypeContents /&gt;&#10;    &lt;staOperationServices /&gt;&#10;   &lt;staOperations /&gt;&#10;    &lt;staServices /&gt;&#10;    &lt;staStationTypes /&gt;&#10;    &lt;staStations /&gt;&#10;    &lt;translationTables /&gt;&#10;    &lt;trnTranslationColumns /&gt;&#10;    &lt;trnTranslationLanguages /&gt;&#10;    &lt;trnTranslations /&gt;&#10;    &lt;warCombatZoneSystems /&gt;&#10;   &lt;warCombatZones /&gt;&#10; &lt;/tables&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/columns/warCombatZones
+      li http://es.4amlunch.net/columns/warCombatZones
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;columns table="warCombatZones"&gt;&#10;   &lt;combatZoneID /&gt;&#10;   &lt;combatZoneName /&gt;&#10;   &lt;factionID /&gt;&#10;    &lt;centerSystemID /&gt;&#10;   &lt;description /&gt;&#10;  &lt;/columns&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/table/warCombatZones
+      li http://es.4amlunch.net/table/warCombatZones
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="4"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneID&gt;&#10;       3&#10;      &lt;/combatZoneID&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;factionID&gt;&#10;        500003&#10;     &lt;/factionID&gt;&#10;     &lt;centerSystemID&gt;&#10;       30003067&#10;     &lt;/centerSystemID&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneID&gt;&#10;       4&#10;      &lt;/combatZoneID&gt;&#10;      &lt;combatZoneName&gt;&#10;       Black&#10;      &lt;/combatZoneName&gt;&#10;      &lt;factionID&gt;&#10;        500001&#10;     &lt;/factionID&gt;&#10;     &lt;centerSystemID&gt;&#10;       30002812&#10;     &lt;/centerSystemID&gt;&#10;      &lt;description&gt;&#10;        Black description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneID&gt;&#10;       5&#10;      &lt;/combatZoneID&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;factionID&gt;&#10;        500004&#10;     &lt;/factionID&gt;&#10;     &lt;centerSystemID&gt;&#10;       30003837&#10;     &lt;/centerSystemID&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneID&gt;&#10;       6&#10;      &lt;/combatZoneID&gt;&#10;      &lt;combatZoneName&gt;&#10;       Anvil&#10;      &lt;/combatZoneName&gt;&#10;      &lt;factionID&gt;&#10;        500002&#10;     &lt;/factionID&gt;&#10;     &lt;centerSystemID&gt;&#10;       30002094&#10;     &lt;/centerSystemID&gt;&#10;      &lt;description&gt;&#10;        Anvil description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/item/byName/EVE%20Station
+      li http://es.4amlunch.net/lookup/item/byName/EVE%20Station
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemID name="EVE Station"&gt;&#10;    4&#10;  &lt;/itemID&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/item/byID/4
+      li http://es.4amlunch.net/lookup/item/byID/4
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemName id="4"&gt;&#10;    EVE Station&#10;  &lt;/itemName&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/system/byName/Jita
+      li http://es.4amlunch.net/lookup/system/byName/Jita
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;solarSystemID name="Jita"&gt;&#10;    30000142&#10; &lt;/solarSystemID&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/system/byID/30000142
+      li http://es.4amlunch.net/lookup/system/byID/30000142
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;solarSystemName id="30000142"&gt;&#10;    Jita&#10; &lt;/solarSystemName&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/type/byName/Damage%20Control%20II
+      li http://es.4amlunch.net/lookup/type/byName/Damage%20Control%20II
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;typeID name="Damage Control II"&gt;&#10;    2048&#10; &lt;/typeID&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/type/byID/2048
+      li http://es.4amlunch.net/lookup/type/byID/2048
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;typeName id="2048"&gt;&#10;   Damage Control II&#10;  &lt;/typeName&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/location/byName/Jita%20IV%20-%20Moon%204%20-%20Caldari%20Navy%20Assembly%20Plant
+      li http://es.4amlunch.net/lookup/location/byName/Jita%20IV%20-%20Moon%204%20-%20Caldari%20Navy%20Assembly%20Plant
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemID name="Jita IV - Moon 4 - Caldari Navy Assembly Plant"&gt;&#10;   60003760&#10; &lt;/itemID&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/location/byID/60003760
+      li http://es.4amlunch.net/lookup/location/byID/60003760
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;itemName id="60003760"&gt;&#10;   Jita IV - Moon 4 - Caldari Navy Assembly Plant&#10; &lt;/itemName&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5
+      li http://es.4amlunch.net/table/warCombatZones?cols=combatZoneName,description&match_col=combatZoneID&match_filter=3,5
       p &lt;eve_static error="0" db_version="oceanus-1.0-105658"&gt;&#10; &lt;warCombatZones rowsReturned="2"&gt;&#10;    &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       Bleaks&#10;     &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        Description of Bleaks&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10;   &lt;row&gt;&#10;      &lt;combatZoneName&gt;&#10;       FED&#10;      &lt;/combatZoneName&gt;&#10;      &lt;description&gt;&#10;        FED description&#10;      &lt;/description&gt;&#10;   &lt;/row&gt;&#10; &lt;/warCombatZones&gt;&#10;&lt;/eve_static&gt;&#10;
 
-      li http://bart.4amlunch.net:8181/lookup/type/byID/2048/text
+      li http://es.4amlunch.net/lookup/type/byID/2048/text
       p Damage Control II
 
-      li http://bart.4amlunch.net:8181/lookup/system/byName/Jita/text
+      li http://es.4amlunch.net/lookup/system/byName/Jita/text
       p 30000142
