@@ -87,10 +87,15 @@ shared static this() {
   router.get("/lookup/:item/byName/:itemName", &lookupItemHandler);
   router.get("/lookup/:item/byName/:itemName/:format", &lookupItemHandler);
 
+  // Blueprint lookups
   router.get("/get/blueprint/materials/:direction/:blueprint", &getBlueprintMatsHandler);
   router.get("/get/blueprint/materials/:direction/:blueprint/:format", &getBlueprintMatsHandler);
-	listenHTTP(settings, router);
 
+  // Get system lists
+  router.get("/get/system/list/:direction/:type", &getSystemListHandler);
+  router.get("/get/system/list/:direction/:type/:format", &getSystemListHandler);
+
+	listenHTTP(settings, router);
 	logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
 }
 
@@ -568,5 +573,138 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
     }
   }
 
+  return cached;
+}
+
+struct secRange {
+  float low;
+  float high;
+}
+
+struct systemSearch {
+  string sec;
+  secRange sr;
+
+  this(string sec, string low, string high) {
+    if (sec) {
+      this.sec = sec.toLower();
+    } else {
+      this.sec = "all";
+    }
+
+    if (low) {
+      this.sr.low = low.to!float;
+    } else {
+      this.sr.low = -1;
+    }
+
+    if (high) {
+      this.sr.high = high.to!float;
+    } else {
+      this.sr.high = 1;
+    }
+  }
+}
+
+void getSystemListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+  systemSearch searchCriteria = systemSearch(req.params["type"], req.query.get("low"), req.query.get("high"));
+  res.writeBody(getSystemList(getFormat(req), req.params["direction"], searchCriteria));
+}
+
+string getSystemList(string format, string direction, systemSearch searchCriteria) {
+  DataSet root = createRootElement();
+  string memCacheKey = "getSystemList::" ~ format ~ "::" ~ direction ~ "::" ~ searchCriteria.to!string.replace(" ", "_");
+  string cached = cache.get!string(memCacheKey);
+  Connection c;
+  float low, high;
+
+  writeln("search: " ~ searchCriteria.to!string);
+
+  if (!cached) {
+    try {
+      c = getDBConnection();
+      scope(exit) c.close();
+
+      auto command = new Command(c);
+      string kw_q = " AND SolarSystemName NOT REGEXP '^J[0-9]{6,6}'";
+
+      switch(searchCriteria.sec) {
+        case "highsec":
+          high = 1;
+          low = 0.5;
+          break;
+
+        case "lowsec":
+          high = 0.4;
+          low = 0.1;
+          break;
+
+        case "nullsec":
+          high = 0;
+          low = -1;
+          break;
+
+        case "k-space":
+          high = 1;
+          low = -1;
+          break;
+
+        case "w-space":
+          kw_q = " AND SolarSystemName REGEXP '^J[0-9]{6,6}'";
+          high = 1;
+          low = -1;
+          break;
+
+        case "args":
+          high = searchCriteria.sr.high;
+          low = searchCriteria.sr.low;
+          break;
+
+        default:
+          kw_q = "";
+          high = 1;
+          low = -1;
+          break;
+      }
+
+      command.sql = "SELECT SolarSystemName, SolarSystemID, security FROM mapSolarSystems WHERE security > ? AND security < ?" ~ kw_q;
+      command.prepare;
+      command.bindParameter(low, 0);
+      command.bindParameter(high, 1);
+      auto results = command.execPreparedResult();
+
+      if (!results.length) {
+        return getErrorResponse("No systems match criteria", format);
+      }
+
+      foreach (row; results) {
+        //writeln("row: " ~ row.to!string);
+        // row[0] - system name
+        // row[1] - system ID
+        // row[2] - system sec level
+        switch (direction) {
+          case "byID":
+            root.addChild(new DataSet(row[1].to!string).addChild(new DataSet("Name").setData(row[0].to!string)).addChild(new DataSet("sec").setData(row[2].to!string)));
+            break;
+
+          case "byName":
+            root.addChild(new DataSet(row[0].to!string).addChild(new DataSet("ID").setData(row[1].to!string)).addChild(new DataSet("sec").setData(row[2].to!string)));
+            break;
+
+          default:
+            return getErrorResponse("Invalid direction: " ~ direction, format);
+        }
+      }
+
+      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
+        cached = root.getPrettyOutput(format);
+      } else {
+        return getErrorResponse("Error caching data", format);
+      }
+
+    } catch (Exception e1) {
+      return getErrorResponse(e1.msg, format);
+    }
+  }
   return cached;
 }
