@@ -309,7 +309,6 @@ class DataSet {
   string generateText() {
     string t;
 
-    /*
     if(_name) {
       t ~= _name;
     }
@@ -319,12 +318,12 @@ class DataSet {
         t ~= " - " ~ attr ~ ": " ~ value;
       }
     }
-    */
 
     if (this.isData()) {
       t = this.getData();
     }
 
+    t ~= "\n";
 		if (_children.length) {
       foreach (child; _children) {
         t ~= child.generateText();

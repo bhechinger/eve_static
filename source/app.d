@@ -682,13 +682,20 @@ string getSystemList(string format, string direction, systemSearch searchCriteri
         // row[0] - system name
         // row[1] - system ID
         // row[2] - system sec level
+        DataSet drow;
         switch (direction) {
           case "byID":
-            root.addChild(new DataSet(row[1].to!string).addChild(new DataSet("Name").setData(row[0].to!string)).addChild(new DataSet("sec").setData(row[2].to!string)));
+            drow = root.addChild(new DataSet(row[1].to!string));
+            if (format != "text") {
+              drow.addChild(new DataSet("Name").setData(row[0].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
+            }
             break;
 
           case "byName":
-            root.addChild(new DataSet(row[0].to!string).addChild(new DataSet("ID").setData(row[1].to!string)).addChild(new DataSet("sec").setData(row[2].to!string)));
+            drow = root.addChild(new DataSet(row[0].to!string));
+            if (format != "text") {
+              drow.addChild(new DataSet("ID").setData(row[1].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
+            }
             break;
 
           default:
