@@ -2,3 +2,5 @@ Use this link to determine if we need a new copy: https://www.fuzzwork.co.uk/dum
 Which we get from here: https://www.fuzzwork.co.uk/dump/mysql-latest.tar.bz2
 
 add column type to columns output
+
+Make direction an ENUM and make all queries return ID/Name as 0/1.
