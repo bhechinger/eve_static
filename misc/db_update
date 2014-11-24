@@ -23,8 +23,11 @@ if [ $RET_VAL -eq 0 ]; then
   exit
 fi
 
+# Cleanup scratch dir
+rm -rf scratch
 mkdir -p scratch
 cd scratch
+
 echo "Downloading ${DB_FILE}"
 wget -O ${DB_FILE} ${DB_URL} --no-check-certificate
 RET_VAL=$?
@@ -39,9 +42,9 @@ tar -xzf ${DB_FILE}
 
 DB_VERSION=$(ls | grep -v mysql-latest.tar.bz2)
 echo "Creating database ${DB_VERSION}"
-mysql -uroot -e "drop database eve_static; create database eve_static"
-mysql -uroot eve_static < ${DB_VERSION}/*.sql
+mysql -hdev1.local -ueve_static -e "drop database eve_static; create database eve_static"
+mysql -hdev1.local -ueve_static eve_static < ${DB_VERSION}/*.sql
 
 cd ..
-sed -ie "s/\(db_version *= *\).*/\1${DB_VERSION}/g" ../conf/example.conf
+sed -ie "s/\(db_version *= *\).*/\1${DB_VERSION}/g" ../conf/eve_static.conf
 mv ${CHECK_VERSION} ${CURRENT_VERSION}
