@@ -8,6 +8,7 @@ import onyx.config.bundle;
 import std.variant;
 import memcached4d;
 import dataset;
+import industry;
 
 enum { ID, NAME }
 MysqlDB mdb;
@@ -489,6 +490,7 @@ int getDirection(string direction) {
 
 void getBlueprintMatsHandler(HTTPServerRequest req, HTTPServerResponse res) {
   int me, runs, direction = getDirection(req.params["direction"]);
+  float facility;
 
   if (direction == -1) {
     res.writeBody(getErrorResponse("Invalid direction: " ~ req.params["direction"], getFormat(req)));
@@ -511,10 +513,16 @@ void getBlueprintMatsHandler(HTTPServerRequest req, HTTPServerResponse res) {
     runs = 1;
   }
 
-  res.writeBody(getBlueprintMats(getFormat(req), req.params["blueprint"], direction, me, runs));
+  try {
+    facility = req.query.get("facility").to!float;
+  } catch (ConvException) {
+    facility = 1.0;
+  }
+
+  res.writeBody(getBlueprintMats(getFormat(req), req.params["blueprint"], direction, me, runs, facility));
 }
 
-string getBlueprintMats(string format, string blueprint, int direction, int me, int runs) {
+string getBlueprintMats(string format, string blueprint, int direction, int ME, int runs, float facility) {
   DataSet root = createRootElement;
   Connection c;
   int typeID;
@@ -536,6 +544,8 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
       break;
   }
 
+  writeln("typeName: ", typeName);
+  writeln("typeID: ", typeID);
   string memCacheKey = "getBlueprintMats::" ~ format ~ "::" ~ typeName ~ "::" ~ typeID.to!string;
   string cached = cache.get!string(memCacheKey);
 
@@ -561,7 +571,8 @@ string getBlueprintMats(string format, string blueprint, int direction, int me, 
 
     foreach (row; results) {
       string material = lookupItem("text", "type", row[0].get!int, null, ID);
-      int quantity = row[1].get!int;
+      //int quantity = row[1].get!int;
+      ulong quantity = calculateMaterials(runs, row[1].get!ulong, ME, facility);
 
       root.addChild(new DataSet(material).setData(quantity.to!string));
     }
