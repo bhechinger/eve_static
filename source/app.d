@@ -381,6 +381,8 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
       this.tn = tn;
       this.a[ID].cn = cn;
       this.a[ID].sc = sc;
+      this.a[NAME].cn = sc;
+      this.a[NAME].sc = cn;
     }
   }
 
@@ -389,11 +391,6 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
   lookupTable["item"] = lookupType("invNames", "itemName", "itemID");
   lookupTable["system"] = lookupType("mapSolarSystems", "solarSystemName", "solarSystemID");
   lookupTable["location"] = lookupType("mapDenormalize", "itemName", "itemID");
-
-  foreach(ref lu; lookupTable) {
-    lu.a[NAME].cn = lu.a[ID].sc;
-    lu.a[NAME].sc = lu.a[ID].cn;
-  }
 
   string lookup = item.toLower();
   lookupType* p = (lookup in lookupTable);
