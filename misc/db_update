@@ -46,5 +46,5 @@ mysql -hdev1.local -ueve_static -e "drop database eve_static; create database ev
 mysql -hdev1.local -ueve_static eve_static < ${DB_VERSION}/*.sql
 
 cd ..
-sed -ie "s/\(db_version *= *\).*/\1${DB_VERSION}/g" ../conf/eve_static.conf
+sed -i'' -e "s/\(db_version *= *\).*/\1${DB_VERSION}/g" ../conf/eve_static.conf
 mv ${CHECK_VERSION} ${CURRENT_VERSION}
