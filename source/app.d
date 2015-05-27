@@ -6,7 +6,6 @@ import mysql.db;
 import std.conv;
 import onyx.config.bundle;
 import std.variant;
-import memcached4d;
 import dataset;
 import industry;
 
@@ -16,11 +15,9 @@ string host, port, user, pwd, db, db_version;
 string[] curTables;
 MetaData md;
 bool refresh_db = true;
-MemcachedClient cache;
 
 void getConfig() {
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
-  cache = memcachedConnect(bundle.value("memcached", "servers"));
   host = bundle.value("database", "host");
   port = bundle.value("database", "port");
   user = bundle.value("database", "user");
@@ -142,32 +139,22 @@ void getTableListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 
 string getTableList(string format) {
   DataSet root = createRootElement();
-  string memCacheKey = "getTableList::" ~ format;
   Connection c;
 
-  string cached = cache.get!string(memCacheKey);
-  if (!cached) {
-    try {
-      c = getDBConnection();
-      scope(exit) c.close();
+  try {
+    c = getDBConnection();
+    scope(exit) c.close();
 
-      DataSet tables = new DataSet("tables");
-      foreach(tbls; curTables) {
-        tables.addChild(new DataSet(tbls));
-      }
-      root.addChild(tables);
-
-      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-        cached = root.getPrettyOutput(format);
-      } else {
-        return getErrorResponse("Error caching data", format);
-      }
-
-    } catch (Exception e1) {
-      return getErrorResponse(e1.msg, format);
+    DataSet tables = new DataSet("tables");
+    foreach(tbls; curTables) {
+      tables.addChild(new DataSet(tbls));
     }
+    root.addChild(tables);
+
+    return root.getPrettyOutput(format);
+  } catch (Exception e1) {
+    return getErrorResponse(e1.msg, format);
   }
-  return cached;
 }
 
 void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
@@ -176,32 +163,22 @@ void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 
 string getColumnList(string format, string table) {
   DataSet root = createRootElement();
-  string memCacheKey = "getColumnList::" ~ format ~ "::" ~ table;
 
-  string cached = cache.get!string(memCacheKey);
-  if (!cached) {
-    try {
-      // This isn't really needed for any other reason than to jog the DB connection if needed.
-      getDBConnection();
-      auto curColumns = md.columns(table);
+  try {
+    // This isn't really needed for any other reason than to jog the DB connection if needed.
+    getDBConnection();
+    auto curColumns = md.columns(table);
 
-      DataSet columns = new DataSet("columns").setAttribute("table", table);
-      foreach(cols; curColumns) {
-        columns.addChild(new DataSet(cols.name));
-      }
-      root.addChild(columns);
-      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-        cached = root.getPrettyOutput(format);
-      } else {
-        return getErrorResponse("Error caching data", format);
-      }
-
-    } catch (Exception e1) {
-      return getErrorResponse(e1.msg, format);
+    DataSet columns = new DataSet("columns").setAttribute("table", table);
+    foreach(cols; curColumns) {
+      columns.addChild(new DataSet(cols.name));
     }
-  }
+    root.addChild(columns);
+    return root.getPrettyOutput(format);
 
-  return cached;
+  } catch (Exception e1) {
+    return getErrorResponse(e1.msg, format);
+  }
 }
 
 bool stringInArray(string str, string[] arr) {
@@ -239,7 +216,6 @@ void getTableHandler(HTTPServerRequest req, HTTPServerResponse res) {
   res.writeBody(getTable(getFormat(req), req.query.get("cols"), req.query.get("match_col"), req.query.get("match_filter"), req.params["tableName"]));
 }
 
-// Maybe needs to be refactored so we don't even make the db connection if we have cached data
 string getTable(string format, string col_filter_r, string match_col, string match_filter_r, string table) {
   auto match_filter = split(match_filter_r, ",");
   bool table_found = false;
@@ -290,55 +266,39 @@ string getTable(string format, string col_filter_r, string match_col, string mat
      // res.writeBody(getErrorResponse("Not a valid columns: " ~ match_col , getFormat(req)));
     //}
 
-    string memCacheKey;
     if (match_col) {
-      memCacheKey = format ~ "::" ~ col_filter ~ "::" ~ table ~ "::" ~ match_col;
-      foreach (f; match_filter) {
-        memCacheKey ~= "::" ~ f;
-      }
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table ~ " WHERE " ~ match_col ~ " IN (" ~ generateSQLParams(match_filter.length) ~ ")";
     } else {
-      memCacheKey = format ~ "::" ~ col_filter ~ "::" ~ table;
       command.sql = "SELECT " ~ col_filter ~ " FROM " ~ table;
     }
 
-    string cached = cache.get!string(memCacheKey);
+    command.prepare;
+    Variant[] va;
+    va.length = match_filter.length;
+    for (int i = 0; i < match_filter.length; i++) {
+      va[i] = match_filter[i];
+    }
+    command.bindParameters(va);
+    results = command.execPreparedResult();
+    DataSet node = new DataSet(table).setAttribute("rowsReturned", results.length);
 
-    if (!cached) {
-      command.prepare;
-      Variant[] va;
-      va.length = match_filter.length;
-      for (int i = 0; i < match_filter.length; i++) {
-        va[i] = match_filter[i];
-      }
-      command.bindParameters(va);
-      results = command.execPreparedResult();
-      DataSet node = new DataSet(table).setAttribute("rowsReturned", results.length);
+   foreach (row; results) {
+      DataSet row_xml = new DataSet("row");
 
-     foreach (row; results) {
-        DataSet row_xml = new DataSet("row");
-
-        foreach (foo; results.colNames) {
-          auto result_col = new DataSet(foo);
-          if (!row.isNull(results.colNameIndicies[foo])) {
-            result_col.addData(row[results.colNameIndicies[foo]].to!string());
-          }
-          row_xml.addChild(result_col);
+      foreach (foo; results.colNames) {
+        auto result_col = new DataSet(foo);
+        if (!row.isNull(results.colNameIndicies[foo])) {
+          result_col.addData(row[results.colNameIndicies[foo]].to!string());
         }
-
-        node.addChild(row_xml);
+        row_xml.addChild(result_col);
       }
 
-      root.addChild(node);
-
-      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-        cached = root.getPrettyOutput(format);
-      } else {
-        return getErrorResponse("Error caching data", format);
-      }
+      node.addChild(row_xml);
     }
 
-    return cached;
+    root.addChild(node);
+
+    return root.getPrettyOutput(format);
   } catch (Exception e1) {
     return getErrorResponse(e1.msg, format);
   }
@@ -398,78 +358,56 @@ string lookupItem(string format, string item, int itemID, string itemName, int a
     return getErrorResponse("Invalid lookup type: " ~ item, format);
   }
 
-  string memCacheKey;
-  switch (action) {
-    case ID:
-      memCacheKey = "lookupItem::" ~ format ~ "::" ~ lookupTable[lookup].a[action].cn ~ "::" ~ lookupTable[lookup].tn ~ "::" ~ lookupTable[lookup].a[action].sc ~ "::" ~ itemID.to!string;
-      break;
-
-    case NAME:
-      memCacheKey = "lookupItem::" ~ format ~ "::" ~ lookupTable[lookup].a[action].cn ~ "::" ~ lookupTable[lookup].tn ~ "::" ~ lookupTable[lookup].a[action].sc ~ "::" ~ itemName;
-      break;
-
-    default:
-      break;
-  }
-
   string output, node_attr, node_attr_val;
   Connection c;
   DataSet root = createRootElement;
 
-  string cached = cache.get!string(memCacheKey);
-  if (!cached) {
-    try {
-      c = getDBConnection();
-      scope(exit) c.close();
-    } catch (Exception e1) {
-      return getErrorResponse(e1.msg, format);
-    }
+  try {
+    c = getDBConnection();
+    scope(exit) c.close();
+  } catch (Exception e1) {
+    return getErrorResponse(e1.msg, format);
+  }
 
-    ResultSet results;
-    auto command = new Command(c);
-    command.sql = "SELECT " ~ lookupTable[lookup].a[action].cn ~ " FROM " ~ lookupTable[lookup].tn ~ " WHERE " ~ lookupTable[lookup].a[action].sc ~ " = ?";
-    command.prepare;
+  ResultSet results;
+  auto command = new Command(c);
+  command.sql = "SELECT " ~ lookupTable[lookup].a[action].cn ~ " FROM " ~ lookupTable[lookup].tn ~ " WHERE " ~ lookupTable[lookup].a[action].sc ~ " = ?";
+  command.prepare;
 
-    switch (action) {
-      case ID:
-        command.bindParameter(itemID, 0);
-        results = command.execPreparedResult();
-        if (!results.length) {
-          return getErrorResponse("No such ID: " ~ itemID.to!string, format);
-        }
-        try {
-          output = results[0][0].get!string;
-        } catch (VariantException) {
-          // LONGTEXT returns ubyte wihch pisses off conversion
-          output = cast(string)results[0][0].get!(ubyte[]);
-        }
-        node_attr = "id";
-        node_attr_val = itemID.to!string;
-        break;
+  switch (action) {
+    case ID:
+      command.bindParameter(itemID, 0);
+      results = command.execPreparedResult();
+      if (!results.length) {
+        return getErrorResponse("No such ID: " ~ itemID.to!string, format);
+      }
+      try {
+        output = results[0][0].get!string;
+      } catch (VariantException) {
+        // LONGTEXT returns ubyte wihch pisses off conversion
+        output = cast(string)results[0][0].get!(ubyte[]);
+      }
+      node_attr = "id";
+      node_attr_val = itemID.to!string;
+      break;
 
-      case NAME:
-        command.bindParameter(itemName, 0);
-        results = command.execPreparedResult();
-        if (!results.length) {
-          return getErrorResponse("No such Name: " ~ itemName, format);
-        }
-        output = results[0][0].to!string;
-        node_attr = "name";
-        node_attr_val = itemName;
-        break;
+    case NAME:
+      command.bindParameter(itemName, 0);
+      results = command.execPreparedResult();
+      if (!results.length) {
+        return getErrorResponse("No such Name: " ~ itemName, format);
+      }
+      output = results[0][0].to!string;
+      node_attr = "name";
+      node_attr_val = itemName;
+      break;
 
-      default:
-        return getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format);
-    }
+    default:
+      return getErrorResponse("This REALLY shouldn't happen, but action is: " ~ action.to!string, format);
+  }
 
     root.addChild(new DataSet(lookupTable[lookup].a[action].cn).setAttribute(node_attr, node_attr_val).setData(output));
-    if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-      cached = root.getPrettyOutput(format);
-    } else {
-      return getErrorResponse("Error caching data", format);
-    }
-  }
-  return cached;
+    return root.getPrettyOutput(format);
 }
 
 int getDirection(string direction) {
@@ -543,45 +481,35 @@ string getBlueprintMats(string format, string blueprint, int direction, int ME, 
 
   writeln("typeName: ", typeName);
   writeln("typeID: ", typeID);
-  string memCacheKey = "getBlueprintMats::" ~ format ~ "::" ~ typeName ~ "::" ~ typeID.to!string;
-  string cached = cache.get!string(memCacheKey);
 
-  if (!cached) {
-    try {
-      c = getDBConnection();
-      scope(exit) c.close();
-    } catch (Exception e1) {
-      return getErrorResponse(e1.msg, format);
-    }
-
-    ResultSet results;
-
-    auto command = new Command(c);
-    command.sql = "SELECT materialTypeID, quantity FROM industryActivityMaterials WHERE typeID = ? AND activityID = 1";
-    command.prepare;
-    command.bindParameter(typeID, 0);
-    results = command.execPreparedResult();
-
-    if (!results.length) {
-      return getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format);
-    }
-
-    foreach (row; results) {
-      string material = lookupItem("text", "type", row[0].get!int, null, ID);
-      //int quantity = row[1].get!int;
-      ulong quantity = calculateMaterials(runs, row[1].get!ulong, ME, facility);
-
-      root.addChild(new DataSet(material).setData(quantity.to!string));
-    }
-
-    if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-      cached = root.getPrettyOutput(format);
-    } else {
-      return getErrorResponse("Error caching data", format);
-    }
+  try {
+    c = getDBConnection();
+    scope(exit) c.close();
+  } catch (Exception e1) {
+    return getErrorResponse(e1.msg, format);
   }
 
-  return cached;
+  ResultSet results;
+
+  auto command = new Command(c);
+  command.sql = "SELECT materialTypeID, quantity FROM industryActivityMaterials WHERE typeID = ? AND activityID = 1";
+  command.prepare;
+  command.bindParameter(typeID, 0);
+  results = command.execPreparedResult();
+
+  if (!results.length) {
+    return getErrorResponse("Invalid blueprint ID: " ~ typeID.to!string, format);
+  }
+
+  foreach (row; results) {
+    string material = lookupItem("text", "type", row[0].get!int, null, ID);
+    //int quantity = row[1].get!int;
+    ulong quantity = calculateMaterials(runs, row[1].get!ulong, ME, facility);
+
+    root.addChild(new DataSet(material).setData(quantity.to!string));
+  }
+
+  return root.getPrettyOutput(format);
 }
 
 struct secRange {
@@ -621,105 +549,96 @@ void getSystemListHandler(HTTPServerRequest req, HTTPServerResponse res) {
 
 string getSystemList(string format, string direction, systemSearch searchCriteria) {
   DataSet root = createRootElement();
-  string memCacheKey = "getSystemList::" ~ format ~ "::" ~ direction ~ "::" ~ searchCriteria.to!string.replace(" ", "_");
-  string cached = cache.get!string(memCacheKey);
   Connection c;
   float low, high;
 
   writeln("search: " ~ searchCriteria.to!string);
 
-  if (!cached) {
-    try {
-      c = getDBConnection();
-      scope(exit) c.close();
+  try {
+    c = getDBConnection();
+    scope(exit) c.close();
 
-      auto command = new Command(c);
-      string kw_q = " AND SolarSystemName NOT REGEXP '^J[0-9]{6,6}'";
+    auto command = new Command(c);
+    string kw_q = " AND SolarSystemName NOT REGEXP '^J[0-9]{6,6}'";
 
-      switch(searchCriteria.sec) {
-        case "highsec":
-          high = 1;
-          low = 0.5;
+    switch(searchCriteria.sec) {
+      case "highsec":
+        high = 1;
+        low = 0.5;
+        break;
+
+      case "lowsec":
+        high = 0.4;
+        low = 0.1;
+        break;
+
+      case "nullsec":
+        high = 0;
+        low = -1;
+        break;
+
+      case "k-space":
+        high = 1;
+        low = -1;
+        break;
+
+      case "w-space":
+        kw_q = " AND SolarSystemName REGEXP '^J[0-9]{6,6}'";
+        high = 1;
+        low = -1;
+        break;
+
+      case "args":
+        high = searchCriteria.sr.high;
+        low = searchCriteria.sr.low;
+        break;
+
+      default:
+        kw_q = "";
+        high = 1;
+        low = -1;
+        break;
+    }
+
+    command.sql = "SELECT SolarSystemName, SolarSystemID, security FROM mapSolarSystems WHERE security > ? AND security < ?" ~ kw_q;
+    command.prepare;
+    command.bindParameter(low, 0);
+    command.bindParameter(high, 1);
+    auto results = command.execPreparedResult();
+
+    if (!results.length) {
+      return getErrorResponse("No systems match criteria", format);
+    }
+
+    foreach (row; results) {
+      //writeln("row: " ~ row.to!string);
+      // row[0] - system name
+      // row[1] - system ID
+      // row[2] - system sec level
+      DataSet drow;
+      switch (direction) {
+        case "byID":
+          drow = root.addChild(new DataSet(row[1].to!string));
+          if (format != "text") {
+            drow.addChild(new DataSet("Name").setData(row[0].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
+          }
           break;
 
-        case "lowsec":
-          high = 0.4;
-          low = 0.1;
-          break;
-
-        case "nullsec":
-          high = 0;
-          low = -1;
-          break;
-
-        case "k-space":
-          high = 1;
-          low = -1;
-          break;
-
-        case "w-space":
-          kw_q = " AND SolarSystemName REGEXP '^J[0-9]{6,6}'";
-          high = 1;
-          low = -1;
-          break;
-
-        case "args":
-          high = searchCriteria.sr.high;
-          low = searchCriteria.sr.low;
+        case "byName":
+          drow = root.addChild(new DataSet(row[0].to!string));
+          if (format != "text") {
+            drow.addChild(new DataSet("ID").setData(row[1].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
+          }
           break;
 
         default:
-          kw_q = "";
-          high = 1;
-          low = -1;
-          break;
+          return getErrorResponse("Invalid direction: " ~ direction, format);
       }
-
-      command.sql = "SELECT SolarSystemName, SolarSystemID, security FROM mapSolarSystems WHERE security > ? AND security < ?" ~ kw_q;
-      command.prepare;
-      command.bindParameter(low, 0);
-      command.bindParameter(high, 1);
-      auto results = command.execPreparedResult();
-
-      if (!results.length) {
-        return getErrorResponse("No systems match criteria", format);
-      }
-
-      foreach (row; results) {
-        //writeln("row: " ~ row.to!string);
-        // row[0] - system name
-        // row[1] - system ID
-        // row[2] - system sec level
-        DataSet drow;
-        switch (direction) {
-          case "byID":
-            drow = root.addChild(new DataSet(row[1].to!string));
-            if (format != "text") {
-              drow.addChild(new DataSet("Name").setData(row[0].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
-            }
-            break;
-
-          case "byName":
-            drow = root.addChild(new DataSet(row[0].to!string));
-            if (format != "text") {
-              drow.addChild(new DataSet("ID").setData(row[1].to!string)).addChild(new DataSet("sec").setData(row[2].to!string));
-            }
-            break;
-
-          default:
-            return getErrorResponse("Invalid direction: " ~ direction, format);
-        }
-      }
-
-      if (cache.store(memCacheKey, root.getPrettyOutput(format)) == RETURN_STATE.SUCCESS) {
-        cached = root.getPrettyOutput(format);
-      } else {
-        return getErrorResponse("Error caching data", format);
-      }
-
-    } catch (Exception e1) {
-      return getErrorResponse(e1.msg, format);
     }
+
+    return root.getPrettyOutput(format);
+
+  } catch (Exception e1) {
+    return getErrorResponse(e1.msg, format);
   }
-  return cached;
 }
