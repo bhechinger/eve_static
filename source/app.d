@@ -369,9 +369,6 @@ void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
 }
 
 string lookupItem(string format, string item, int itemID, string itemName, int action) {
-}
-
-DataSet lookupItem(string format, string item, int itemID, string itemName, int action) {
   struct lookupBy {
     string cn;
     string sc;
@@ -472,7 +469,7 @@ DataSet lookupItem(string format, string item, int itemID, string itemName, int 
       return getErrorResponse("Error caching data", format);
     }
   }
-  return root;
+  return cached;
 }
 
 int getDirection(string direction) {
