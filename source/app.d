@@ -55,10 +55,10 @@ Connection getDBConnection() {
 }
 
 shared static this() {
-  auto settings = new HTTPServerSettings;
+	auto settings = new HTTPServerSettings;
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
-  settings.port = bundle.value("network", "port").to!ushort;
-  settings.bindAddresses = [bundle.value("network", "listen")];
+	settings.port = bundle.value("network", "port").to!ushort;
+	settings.bindAddresses = [bundle.value("network", "listen")];
 
   getConfig();
   auto router = new URLRouter;
@@ -66,35 +66,35 @@ shared static this() {
   router.get("/help", &printHelp);
 
   // Get a list of the available tables
-  router.get("/tables/list", &getTableListHandler);
-  router.get("/tables/list/:format", &getTableListHandler);
+  router.get("/tables/list", &getTableList);
+  router.get("/tables/list/:format", &getTableList);
 
   // Get all the rows of a specific table
-  router.get("/table/:tableName", &getTableHandler);
-  router.get("/table/:tableName/:format", &getTableHandler);
+  router.get("/table/:tableName", &getTable);
+  router.get("/table/:tableName/:format", &getTable);
 
   // Get a list of the columns in a table
-  router.get("/columns/:tableName", &getColumnListHandler);
-  router.get("/columns/:tableName/:format", &getColumnListHandler);
+  router.get("/columns/:tableName", &getColumnList);
+  router.get("/columns/:tableName/:format", &getColumnList);
 
   // Lookup by ID and return Name
-  router.get("/lookup/:item/byID/:itemID", &lookupItemHandler);
-  router.get("/lookup/:item/byID/:itemID/:format", &lookupItemHandler);
+  router.get("/lookup/:item/byID/:itemID", &lookupItem);
+  router.get("/lookup/:item/byID/:itemID/:format", &lookupItem);
 
   // Lookup by Name and return ID
-  router.get("/lookup/:item/byName/:itemName", &lookupItemHandler);
-  router.get("/lookup/:item/byName/:itemName/:format", &lookupItemHandler);
+  router.get("/lookup/:item/byName/:itemName", &lookupItem);
+  router.get("/lookup/:item/byName/:itemName/:format", &lookupItem);
 
   // Blueprint lookups
-  router.get("/get/blueprint/materials/:direction/:blueprint", &getBlueprintMatsHandler);
-  router.get("/get/blueprint/materials/:direction/:blueprint/:format", &getBlueprintMatsHandler);
+  router.get("/get/blueprint/materials/:direction/:blueprint", &getBlueprintMats);
+  router.get("/get/blueprint/materials/:direction/:blueprint/:format", &getBlueprintMats);
 
   // Get system lists
-  router.get("/get/system/list/:direction/:type", &getSystemListHandler);
-  router.get("/get/system/list/:direction/:type/:format", &getSystemListHandler);
+  router.get("/get/system/list/:direction/:type", &getSystemList);
+  router.get("/get/system/list/:direction/:type/:format", &getSystemList);
 
-  listenHTTP(settings, router);
-  logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
+	listenHTTP(settings, router);
+	logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
 }
 
 DataSet createRootElement() {
@@ -133,7 +133,7 @@ void printHelp(HTTPServerRequest req, HTTPServerResponse res) {
   res.render!("index.dt", req);
 }
 
-void getTableListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void getTableList(HTTPServerRequest req, HTTPServerResponse res) {
   res.writeBody(getTableList(getFormat(req)));
 }
 
@@ -157,7 +157,7 @@ string getTableList(string format) {
   }
 }
 
-void getColumnListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void getColumnList(HTTPServerRequest req, HTTPServerResponse res) {
   res.writeBody(getColumnList(getFormat(req), req.params["tableName"]));
 }
 
@@ -212,7 +212,7 @@ string generateSQLParams(ulong count) {
   return params;
 }
 
-void getTableHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void getTable(HTTPServerRequest req, HTTPServerResponse res) {
   res.writeBody(getTable(getFormat(req), req.query.get("cols"), req.query.get("match_col"), req.query.get("match_filter"), req.params["tableName"]));
 }
 
@@ -304,7 +304,7 @@ string getTable(string format, string col_filter_r, string match_col, string mat
   }
 }
 
-void lookupItemHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void lookupItem(HTTPServerRequest req, HTTPServerResponse res) {
   string itemName, item = req.params["item"];
   int action, itemID;
   string format = getFormat(req);
@@ -423,7 +423,7 @@ int getDirection(string direction) {
   }
 }
 
-void getBlueprintMatsHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void getBlueprintMats(HTTPServerRequest req, HTTPServerResponse res) {
   int me, runs, direction = getDirection(req.params["direction"]);
   float facility;
 
@@ -542,7 +542,7 @@ struct systemSearch {
   }
 }
 
-void getSystemListHandler(HTTPServerRequest req, HTTPServerResponse res) {
+void getSystemList(HTTPServerRequest req, HTTPServerResponse res) {
   systemSearch searchCriteria = systemSearch(req.params["type"], req.query.get("low"), req.query.get("high"));
   res.writeBody(getSystemList(getFormat(req), req.params["direction"], searchCriteria));
 }
