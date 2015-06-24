@@ -55,10 +55,10 @@ Connection getDBConnection() {
 }
 
 shared static this() {
-	auto settings = new HTTPServerSettings;
+  auto settings = new HTTPServerSettings;
   auto bundle = immutable ConfBundle("conf/eve_static.conf");
-	settings.port = bundle.value("network", "port").to!ushort;
-	settings.bindAddresses = [bundle.value("network", "listen")];
+  settings.port = bundle.value("network", "port").to!ushort;
+  settings.bindAddresses = [bundle.value("network", "listen")];
 
   getConfig();
   auto router = new URLRouter;
@@ -93,8 +93,8 @@ shared static this() {
   router.get("/get/system/list/:direction/:type", &getSystemListHandler);
   router.get("/get/system/list/:direction/:type/:format", &getSystemListHandler);
 
-	listenHTTP(settings, router);
-	logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
+  listenHTTP(settings, router);
+  logInfo("Please open http:/" ~ settings.bindAddresses[0] ~ ":" ~ settings.port.to!string ~ "/ in your browser.");
 }
 
 DataSet createRootElement() {
